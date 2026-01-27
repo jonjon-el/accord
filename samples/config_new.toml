@@ -1,7 +1,3 @@
-#nel_calc analyze-preliminary --input-dir samples --output-dir tests --input-preffix preliminary --output-preffix output-preliminary --filetype csv --summary summary.json --config tests\config.json
-#nel_calc analyze-preliminary --summary summary.json --config tests\config.json
-
-
 [analyze-preliminary]
 input-dir = "samples"
 output-dir = "tests"
@@ -13,3 +9,10 @@ default-base-types = ""
 new-input-units = ""
 output-units = ""
 max-PTP = ""
+
+[generate-calibration-report]
+output = "calibration_report.pdf"
+
+[generate-graph]
+output = "graph_output.png"
+figsize = { x = 10, y = 6 }

@@ -11,6 +11,7 @@ import pylinac
 import click
 import pandas as pd
 import matplotlib.pyplot as plt
+plt.switch_backend('Agg')  # Use a non-interactive backend for matplotlib
 
 import nel_calc.nel_config
 import nel_calc.nel_aux
@@ -44,9 +45,6 @@ def validate_mutually_exclusive_options(ctx, param, value):
             
     return value
 
-# program_folder: pathlib.Path = pathlib.Path(__file__).parent.parent.resolve() # Seems unnecessary during migration to config.toml
-# samples_folder: pathlib.Path = program_folder / nel_calc.nel_config.foldernames["samples"] # Seems unnecessary during migration to config.toml
-
 @click.group()
 @click.version_option("0.2.0", prog_name="nel_calc")
 def cli():
@@ -70,11 +68,10 @@ def create_config(filename):
 #command to create image for 2D profiling. OK
 @click.command()
 @click.argument("filename", type=click.Path(file_okay=True, dir_okay=False), required=True)
-@click.option("--field-size-mm", type=click.Tuple([float, float]), callback=validate_config_path_exclusive_option, help="Field size in mm.")
-@click.option("--sigma-mm", type=float, callback=validate_config_path_exclusive_option, help="Sigma in mm for the Gaussian filter.")
-@click.option("--gantry-angle", type=float, callback=validate_config_path_exclusive_option, help="Gantry angle in degrees.")
+@click.option("--field-size-mm", type=click.Tuple([click.FLOAT, click.FLOAT]), callback=validate_config_path_exclusive_option, help="Field size in mm.")
+@click.option("--sigma-mm", type=click.FLOAT, callback=validate_config_path_exclusive_option, help="Sigma in mm for the Gaussian filter.")
+@click.option("--gantry-angle", type=click.FLOAT, callback=validate_config_path_exclusive_option, help="Gantry angle in degrees.")
 @click.option("--epid", type=str, callback=validate_config_path_exclusive_option, help="Name of the EPID that will be simulated.")
-# @click.option("--config", type=click.Path(exists=True, file_okay=True), callback=validate_config_path_exclusive_option, help="Path to the config file.")
 @click.option("--config-new", type=click.Path(exists=True, file_okay=True), help="Config filename.")
 def create_image_planar(filename, field_size_mm, sigma_mm, gantry_angle, epid, config_new):
     """Create planar image for 2D profiling."""
@@ -86,35 +83,11 @@ def create_image_planar(filename, field_size_mm, sigma_mm, gantry_angle, epid, c
     gantry_angle = nel_calc.nel_aux.resolve_option(gantry_angle, cfg, "create-image-planar.gantry-angle", required=True)
     epid = nel_calc.nel_aux.resolve_option(epid, cfg, "create-image-planar.epid", required=True)
 
-    # Load the config file.
-    # if config:
-        # with open(config, "r", encoding = "utf-8") as configFile:
-            # configJSON = json.load(configFile)
-    
-        # field_size_mm=configJSON["images"]["symmetry"]["FilteredFieldLayer"]["field_size_mm"]
-        # sigma_mm=configJSON["images"]["symmetry"]["GaussianFilterLayer"]["sigma_mm"]
-        # gantry_angle=configJSON["images"]["symmetry"]["generate_dicom"]["gantry_angle"]
-        # for device in configJSON["devices"]:
-        #     if configJSON["devices"][device]["type"] == "epid":
-        #         deviceStatus = configJSON["devices"][device]["status"]
-        #         if "default" in deviceStatus:
-        #             epid = configJSON["devices"][device]["name"]
-        #             break
-        #         else:
-        #             raise LookupError("No default EPID found in the config file.")
-        #     else:
-        #         raise KeyError("No EPID found in the config file.")
-    # else:
-        #Check if all the parameters are provided.
-        # if field_size_mm is None or sigma_mm is None or gantry_angle is None or epid is None:
-            # raise click.BadParameter("All parameters are required.")
-    
     #Load the appropiated epid class.
     if epid == "iViewGT":
         iViewGT0 = nel_calc.customSim.iViewGTImage()
     else:
         raise click.exceptions.BadParameter(f"Unknown EPID name for class instance: {epid}.")
-        # raise ValueError(f"Unknown EPID name for class instance: {epid}.")
     
     iViewGT0.add_layer(pylinac.core.image_generator.layers.FilteredFieldLayer(field_size_mm=field_size_mm))
     iViewGT0.add_layer(pylinac.core.image_generator.layers.GaussianFilterLayer(sigma_mm=sigma_mm))
@@ -128,9 +101,6 @@ def create_image_planar(filename, field_size_mm, sigma_mm, gantry_angle, epid, c
 @click.argument("filename", type=click.Path(file_okay=True, dir_okay=False), required=True)
 def create_calibration(filename):
     """Create a calibration file."""
-    # Check if the file already exists.
-    # if pathlib.Path(filename).exists():
-    #    raise click.BadParameter("File already exists. Please choose a different name or delete the existing file.")
 
     with open(filename, "w", encoding="utf-8") as calibrationFile:
         json.dump(nel_calc.nel_aux.calibration_data, calibrationFile, indent=4, ensure_ascii=False)
@@ -140,7 +110,6 @@ def create_calibration(filename):
 
 #analyze-preliminary command. OK
 @click.command()
-#@click.argument("filenames", nargs=-1, type=click.Path(exists=True, file_okay=True), required=True)
 @click.option("--input-dir", type=click.Path(exists=True, dir_okay=True), help="Path of input file directory.")
 @click.option("--output-dir", type=click.Path(exists=True, dir_okay=True), help="Path of output file directory.")
 @click.option("--input-preffix", type=click.STRING, help="Input fileName preffix.")
@@ -152,17 +121,9 @@ def create_calibration(filename):
 @click.option("--new-input-units", type=click.Tuple([click.STRING, click.STRING, click.STRING, click.STRING, click.STRING, click.STRING]), help="Units of the values in the columns of csv input file.")
 @click.option("--old-output-units", type=click.Tuple([click.STRING, click.STRING, click.STRING, click.STRING, click.STRING, click.STRING]), help="Class of the values in the columns of csv output file.")
 @click.option("--max-PTP", type=click.FLOAT, help="Maximum limit for PTP.")
-# @click.option("--config", type=click.Path(exists=True, file_okay=True), help="Config filename.")
 @click.option("--config-new", type=click.Path(exists=True, file_okay=True), help="Config filename.")
 def analyze_preliminary(config_new, input_dir, output_dir, input_preffix, output_preffix, filetype, summary, default_basetypes, column_class, new_input_units, old_output_units, max_ptp):
     """Analyze calibration preliminary data about measurements."""
-
-    # Load the new config file
-    #if config_new:
-    #    with open(config_new, "rb") as configFileNew:
-    #        cfg = tomllib.load(configFileNew)
-    #else:
-    #    cfg = {}
 
     cfg = nel_calc.nel_aux.load_toml_file(config_new) if config_new else {}
 
@@ -175,41 +136,19 @@ def analyze_preliminary(config_new, input_dir, output_dir, input_preffix, output
     default_basetypes = nel_calc.nel_aux.resolve_option(default_basetypes, cfg, "analyze-preliminary.default-basetypes", required=True)
     column_class = nel_calc.nel_aux.resolve_option(column_class, cfg, "analyze-preliminary.column-class", required=True)
     new_input_units = nel_calc.nel_aux.resolve_option(new_input_units, cfg, "analyze-preliminary.new-input-units", required=True)
-    old_output_units = nel_calc.nel_aux.resolve_option(new_input_units, cfg, "analyze-preliminary.new-output-units", required=True)
+    old_output_units = nel_calc.nel_aux.resolve_option(old_output_units, cfg, "analyze-preliminary.new-output-units", required=True)
     max_ptp = nel_calc.nel_aux.resolve_option(max_ptp, cfg, "analyze-preliminary.max-PTP", required=True)
-
-    # output_dir = output_dir or cfg["analyze-preliminary"]["output-dir"]
-    # input_preffix = input_preffix or cfg["analyze-preliminary"]["input-preffix"]
-    # output_preffix = output_preffix or cfg["analyze-preliminary"]["output-preffix"]
-    # filetype = filetype or cfg["analyze-preliminary"]["filetype"]
-    # summary = summary or cfg["analyze-preliminary"]["summary"]
-
-    # Load the config file.
-    # with open(config, "r", encoding = "utf-8") as configFile:
-    #     configJSON = json.load(configFile)
 
     # Base types for the quantities.
     default_baseTypes = dict(zip(column_class, default_basetypes)) # For new config file.
 
     #Obtaining the units that will be used in the output files.
     
-    # new_input_units = {key: configJSON["quantities"][key]["unit"] for key in configJSON["files"]["input_preliminary"]["header"]}
     new_input_units = dict(zip(column_class, new_input_units)) # For new config file.
 
-    # output_header = configJSON["files"]["output_preliminary"]["header"] # Not needed with column-class parameter.
-
-    # old_output_units = {key: configJSON["quantities"][key]["unit"] for key in output_header}
     old_output_units = dict(zip(column_class, old_output_units)) # For new config file.
 
-    # Filenames for the output files.
-    #summary = f"{configJSON["files"]["summary"]["preffix"]}.{configJSON["files"]["summary"]["extension"]}"
-    #output_preffix = f"{configJSON["files"]["output_preliminary"]["preffix"]}"
-
-    #limits
-    # max_PTP = configJSON["limits"]["PTP"]["max"] # For new config file.
-
     # Getting the input filenames.
-    #input_suffix = f".{filetype}"
     filenames = list()
     for file in pathlib.Path(input_dir).iterdir():
         if file.is_file():
@@ -295,10 +234,6 @@ def analyze_preliminary(config_new, input_dir, output_dir, input_preffix, output
         dirs = pathlib.Path(filePath).parent
         stem = pathlib.Path(filePath).stem
         suffix = pathlib.Path(filePath).suffix
-        #dirs, fileName = os.path.split(filePath)
-        #baseName, extension = os.path.splitext(fileName)
-        #output_extension = configJSON["files"]["output_preliminary"]["extension"]
-        #output_filename = f"{output_preffix}{stem}{suffix}"
         output_filename = f"{output_preffix}{i}{suffix}"
         output_filePath = pathlib.Path(output_dir) / output_filename
         
@@ -340,27 +275,6 @@ def analyze_image_planar(filename, protocol, output, config_new):
     protocol = nel_calc.nel_aux.resolve_option(protocol, cfg, "analyze-image-planar.protocol", required=True)
     output = nel_calc.nel_aux.resolve_option(output, cfg, "analyze-image-planar.output", required=True)
 
-    # if config:
-    #     # Load the config file.
-    #     with open(config, "r", encoding = "utf-8") as configFile:
-    #         configJSON = json.load(configFile)
-
-    # Output filename.
-        # output = f"{configJSON["files"]["output-image-analysis"]["preffix"]}.{configJSON["files"]["output-image-analysis"]["extension"]}"
-
-        # protocol = None
-        # for configJSON_device in configJSON["devices"]:
-        #     if configJSON["devices"][configJSON_device]["type"] == "epid":
-        #         deviceStatus = configJSON["devices"][configJSON_device]["status"]
-        #         if "default" in deviceStatus:
-        #             protocol = configJSON["devices"][configJSON_device]["protocol"]
-        #             break
-
-    # else:
-    #     #Check if all the parameters are provided.
-    #     if protocol is None or output is None:
-    #         raise click.BadParameter("All parameters are required.")
-
     # Load input files: field images
     field_analysis = pylinac.FieldAnalysis(path=filename)
     
@@ -384,7 +298,7 @@ def analyze_image_planar(filename, protocol, output, config_new):
     click.echo(f"2D images analyzed.")
     sys.exit(0)
 
-# generate-calbration-report.
+# generate-calibration-report. OK
 @click.command()
 @click.argument("filename", type=click.Path(file_okay=True, dir_okay=False), required=True)
 @click.option("--output", type=click.Path(file_okay=True, dir_okay=False), help="Output filename.")
@@ -396,10 +310,6 @@ def generate_calibration_report(filename, output, config_new):
     cfg = nel_calc.nel_aux.load_toml_file(config_new) if config_new else {}
 
     output = nel_calc.nel_aux.resolve_option(output, cfg, "generate-calibration-report.output", required=True)
-
-    # Load the config file.
-    # with open(config, "r", encoding = "utf-8") as configFile:
-        # configJSON = json.load(configFile)
     
     # Load the input file.
     with open(filename, "r", encoding = "utf-8") as inputFile:
@@ -437,32 +347,78 @@ def generate_calibration_report(filename, output, config_new):
     click.echo(f"Output file {output} created.")
     sys.exit(0)
 
+# generate-graph command. WORKING...
 @click.command()
 @click.argument('csv_file', type=click.Path(exists=True))
-@click.option('--output', help='Filename to save the graph', required=True)
-@click.option('--config', type=click.Path(exists=True, file_okay=True), help='Config filename.', required=True)
-def generate_graph(csv_file, output, config):
+@click.option("--config-new", type=click.Path(exists=True, file_okay=True), help="Config filename.")
+@click.option('--output', type=click.Path(exists=True, file_okay=True), help='Filename to save the graph')
+@click.option('--figsize', type=click.Tuple([int, int]), help='Figure size as a tuple (x, y)')
+@click.option('--marker', type=click.STRING, help='Marker style for the graph')
+@click.option('--linestyle', type=click.STRING, help='Line style for the graph')
+@click.option('--title', type=click.STRING, help='Title of the graph')
+@click.option('--grid', type=click.BOOL, help='Whether to show grid on the graph')
+def generate_graph(csv_file, config_new, output, figsize, marker, linestyle, title, grid):
     """Generates a graph from a given CSV file."""
     
-    # Load the config file.
-    with open(config, "r", encoding="utf-8") as configFile:
-        configJSON = json.load(configFile)
+    cfg = nel_calc.nel_aux.load_toml_file(config_new) if config_new else {}
+
+    # Load command configuration
+    output = nel_calc.nel_aux.resolve_option(output, cfg, "generate-graph.output", required=True)
+    figsize = nel_calc.nel_aux.resolve_option(figsize, cfg, "generate-graph.figsize", required=True)
+    marker = nel_calc.nel_aux.resolve_option(marker, cfg, "generate-graph.marker", required=True)
+    linestyle = nel_calc.nel_aux.resolve_option(linestyle, cfg, "generate-graph.linestyle", required=True)
+    title = nel_calc.nel_aux.resolve_option(title, cfg, "generate-graph.title", required=True)
+    grid = nel_calc.nel_aux.resolve_option(grid, cfg, "generate-graph.grid", required=True)
+
+    # Check types and convert where necessary
+    
+    # output should be a string
+    if not isinstance(output, str):
+        raise click.BadParameter("output must be a string")
+    
+    # figsize should be a tuple of two floatnumbers
+    if not isinstance(figsize, (list, tuple)) or len(figsize) != 2:
+        raise click.BadParameter("figsize must be a list or tuple of length 2")
+    if isinstance(figsize, list):
+        figsize = tuple(figsize)
+    for i in range(2):
+        if not isinstance(figsize[i], (int, float)):
+            raise click.BadParameter("figsize values must be numbers")
+
+    # marker should be a string
+    if not isinstance(marker, str):
+        raise click.BadParameter("marker must be a string")
+    
+    # linestyle should be a string
+    if not isinstance(linestyle, str):
+        raise click.BadParameter("linestyle must be a string")
+    
+    # title should be a string
+    if not isinstance(title, str):
+        raise click.BadParameter("title must be a string")
+    
+    # grid should be a boolean
+    if not isinstance(grid, bool):
+        raise click.BadParameter("grid must be a boolean")
 
     # Load data
     df = pd.read_csv(csv_file)
 
-    # Assuming the first column is X and the second is Y
-    plt.figure(figsize=(configJSON["pdd_graph"]["figsize"]["x"], configJSON["pdd_graph"]["figsize"]["y"]))
-    plt.plot(df.iloc[:, 0], df.iloc[:, 1], marker='o', linestyle='-')
-    
-    # Customizing the plot
-    plt.xlabel(configJSON["pdd_graph"]["xlabel"])
-    plt.ylabel(configJSON["pdd_graph"]["ylabel"])
-    plt.title(configJSON["pdd_graph"]["title"])
-    plt.grid(configJSON["pdd_graph"]["grid"])
+    # Size of the figure
+    plt.figure(figsize=figsize)
 
+    # Graph style
+    plt.plot(df.iloc[:, 0], df.iloc[:, 1], marker=marker, linestyle=linestyle)
+    
+    # Graph titles
+    headers = df.columns.tolist()
+    plt.xlabel(headers[0])
+    plt.ylabel(headers[1])
+    plt.title(title)
+    plt.grid(grid)
     # Save the graph
     plt.savefig(output)
+    plt.close()
     click.echo(f"Graph saved as {output}")
     sys.exit(0)
 
