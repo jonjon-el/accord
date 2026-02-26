@@ -28,7 +28,13 @@ def resolve_option(cli_value, config, key_path, *, required=False, prompt=False,
             raise click.UsageError(f"Missing required option: --{keys[-1]} or '{key_path}' in config.")
     return value
 
+def resolve_option2(cli_value, config, key_path):
+    keys = key_path.split(".")
+    value = cli_value or get_nested(config, *keys)
 
+    if value is None:
+        raise click.UsageError(f"Missing required option: --{keys[-1]} or '{key_path}' in config.")
+    return value
 
 # Example calibration data structure used in the calibration file.
 calibration_data = {
