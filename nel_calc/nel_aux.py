@@ -2,6 +2,7 @@ import pylinac.calibration.trs398
 import tomllib
 import click
 
+
 # Load a TOML file
 def load_toml_file(path):
     with open(path, "rb") as f:

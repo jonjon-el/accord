@@ -1,8 +1,11 @@
 import sys
 import json
+#import tomlkit
 import csv
 import pathlib
 import datetime
+import importlib.resources
+import shutil
 
 import pylinac.calibration.trs398
 import pylinac.core.image_generator.layers
@@ -53,15 +56,23 @@ def cli():
 
 #command to create a config file
 @click.command()
-@click.argument("filename", type=click.Path(file_okay=True, dir_okay=False), required=True)
-def create_config(filename):
+@click.argument("filepath", type=click.Path(file_okay=True, dir_okay=False), required=True)
+def create_config(filepath: str):
     """Create a config file."""    
     # Check if the file already exists.
-    if pathlib.Path(filename).exists():
+    if pathlib.Path(filepath).exists():
         raise click.BadParameter("File already exists. Please choose a different name or delete the existing file.")
-    with open(filename, "w", encoding="utf-8") as configFile:
-        json.dump(nel_calc.nel_config.default_config, configFile, indent=4)
-        click.echo(f"Config file {filename} created.")
+    # with open(filepath, "w", encoding="utf-8") as configFile:
+        # Creating file structure
+        # configDoc = tomlkit.document()
+        # configDoc.add(tomlkit.comment("Default configuration file for nel_calc."))
+
+    configTraversable = importlib.resources.files("nel_calc").joinpath("config_new.toml")
+    with importlib.resources.as_file(configTraversable) as configPath:
+        shutil.copy(configPath, filepath)
+            
+        # json.dump(nel_calc.nel_config.default_config, configFile, indent=4)
+    click.echo(f"Config file {filepath} created.")
     
     sys.exit(0)
 
@@ -76,7 +87,7 @@ def create_config(filename):
 def create_image_planar(
     filename: str,
     config_new: str,
-    field_size_mm: tuple,
+    field_size_mm: tuple|list,
     sigma_mm: float,
     gantry_angle: float,
     epid: str):
@@ -90,8 +101,8 @@ def create_image_planar(
     epid = nel_calc.nel_aux.resolve_option2(epid, cfg, "create-image-planar.epid")
 
     # Check types
-    if not isinstance(field_size_mm, tuple) or len(field_size_mm) != 2:
-        raise click.BadParameter("field-size-mm must be a tuple of two floats.")
+    if not isinstance(field_size_mm, (tuple, list)) or len(field_size_mm) != 2:
+        raise click.BadParameter("field-size-mm must be a tuple or list of two floats.")
     if not all(isinstance(x, (int, float)) for x in field_size_mm):
         raise click.BadParameter("field-size-mm must be a tuple of two floats.")
 
@@ -115,9 +126,9 @@ def create_image_planar(
     sys.exit(0)
 
 #create calibration command. OK
-@click.command()
-@click.argument("filename", type=click.Path(file_okay=True, dir_okay=False), required=True)
-def create_calibration(filename: str):
+# @click.command()
+# @click.argument("filename", type=click.Path(file_okay=True, dir_okay=False), required=True)
+# def create_calibration(filename: str):
     """Create a calibration file."""
 
     # Opening calibration file for writing.
@@ -139,7 +150,7 @@ def create_calibration(filename: str):
 @click.option("--default-basetypes", type=click.Tuple([click.STRING, click.STRING, click.STRING, click.STRING, click.STRING, click.STRING]), help="Default basetypes of the values in the columns of csv files.")
 @click.option("--column-class", type=click.Tuple([click.STRING, click.STRING, click.STRING, click.STRING, click.STRING, click.STRING]), help="Class of the values in the columns of csv files.")
 @click.option("--new-input-units", type=click.Tuple([click.STRING, click.STRING, click.STRING, click.STRING, click.STRING, click.STRING]), help="Units of the values in the columns of csv input file.")
-@click.option("--old-output-units", type=click.Tuple([click.STRING, click.STRING, click.STRING, click.STRING, click.STRING, click.STRING]), help="Class of the values in the columns of csv output file.")
+@click.option("--new-output-units", type=click.Tuple([click.STRING, click.STRING, click.STRING, click.STRING, click.STRING, click.STRING]), help="Units of the values in the columns of csv output file.")
 @click.option("--max-PTP", type=click.FLOAT, help="Maximum limit for PTP.")
 def analyze_preliminary(config_new: str | None,
                         input_dir: str,
@@ -151,7 +162,7 @@ def analyze_preliminary(config_new: str | None,
                         default_basetypes: tuple[str],
                         column_class: tuple[str],
                         new_input_units: tuple[str],
-                        old_output_units: tuple[str],
+                        new_output_units: tuple[str],
                         max_ptp: float):
     """Analyze calibration preliminary data about measurements."""
 
@@ -166,7 +177,7 @@ def analyze_preliminary(config_new: str | None,
     default_basetypes = nel_calc.nel_aux.resolve_option2(default_basetypes, cfg, "analyze-preliminary.default-basetypes")
     column_class = nel_calc.nel_aux.resolve_option2(column_class, cfg, "analyze-preliminary.column-class")
     new_input_units = nel_calc.nel_aux.resolve_option2(new_input_units, cfg, "analyze-preliminary.new-input-units")
-    old_output_units = nel_calc.nel_aux.resolve_option2(old_output_units, cfg, "analyze-preliminary.new-output-units")
+    new_output_units = nel_calc.nel_aux.resolve_option2(new_output_units, cfg, "analyze-preliminary.new-output-units")
     max_ptp = nel_calc.nel_aux.resolve_option2(max_ptp, cfg, "analyze-preliminary.max-PTP")
 
     # Check types
@@ -183,32 +194,31 @@ def analyze_preliminary(config_new: str | None,
     if not isinstance(summary, str | None):
         raise click.BadParameter("summary must be a string or None.")
 
-    if not isinstance(default_basetypes, tuple):
+    if not isinstance(default_basetypes, (tuple, list)):
         raise click.BadParameter("default-basetypes must be a tuple of strings.")
-    if not isinstance(column_class, tuple):
+    if not isinstance(column_class, (tuple, list)):
         raise click.BadParameter("column-class must be a tuple of strings.")
-    if not isinstance(new_input_units, tuple):
+    if not isinstance(new_input_units, (tuple, list)):
         raise click.BadParameter("new-input-units must be a tuple of strings.")
-    if not isinstance(old_output_units, tuple):
-        raise click.BadParameter("old-output-units must be a tuple of strings.")
-
+    if not isinstance(new_output_units, (tuple, list)):
+        raise click.BadParameter("new-output-units must be a tuple of strings.")
     # Base types for the quantities.
-    default_baseTypes = dict(zip(column_class, default_basetypes)) # For new config file.
+    dict_default_basetypes = dict(zip(column_class, default_basetypes)) # For new config file.
 
     #Obtaining the units that will be used in the output files.
     
-    new_input_units = dict(zip(column_class, new_input_units)) # For new config file.
+    dict_new_input_units = dict(zip(column_class, new_input_units)) # For new config file.
 
-    old_output_units = dict(zip(column_class, old_output_units)) # For new config file.
+    dict_new_output_units = dict(zip(column_class, new_output_units)) # For new config file.
 
     # Getting the input filenames.
-    filenames = list()
+    filepaths = list()
     for file in pathlib.Path(input_dir).iterdir():
         if file.is_file():
             #if file.name.startswith(input_preffix) and file.suffix == input_suffix:
-            if file.name.startswith(input_preffix) and file.suffix == filetype:
-                filenames.append(str(file.resolve()))
-    if len(filenames) == 0:
+            if file.name.startswith(input_preffix) and file.suffix == f".{filetype}":
+                filepaths.append(str(file.resolve()))
+    if len(filepaths) == 0:
         print("Cannot find input files.")
         return
         #raise FileNotFoundError
@@ -216,14 +226,14 @@ def analyze_preliminary(config_new: str | None,
     # from files to rawMeasurement_list_tries
     # Read the files and convert them to rawMeasurement_list_tries
     rawMeasurement_list_tries = list()
-    for filename in filenames:    
-        with open(filename, "r", encoding = "utf-8") as csvFile:
+    for filepath in filepaths:    
+        with open(filepath, "r", encoding = "utf-8") as csvFile:
             csvDictReader = csv.DictReader(csvFile)
             input_header = csvDictReader.fieldnames # Getting the current header in first line
             old_input_units = next(csvDictReader) # Getting the units in second line
             rawMeasurement_list = list()
             for row in csvDictReader: # Getting the values
-                rawMeasurement = nel_calc.nel_aux.Row2Measurement(row=row, header=input_header, baseTypes=default_baseTypes)
+                rawMeasurement = nel_calc.nel_aux.Row2Measurement(row=row, header=input_header, baseTypes=dict_default_basetypes)
                 rawMeasurement_list.append(rawMeasurement.copy())
         rawMeasurement_list_tries.append(rawMeasurement_list.copy())
 
@@ -239,7 +249,7 @@ def analyze_preliminary(config_new: str | None,
     for rawMeasurement_list in rawMeasurement_list_tries:
         measurement_list = list()
         for rawMeasurement in rawMeasurement_list:
-            measurement = nel_calc.nel_aux.ConvertMeasurement(rawMeasurement=rawMeasurement, oldUnits=old_input_units, newUnits=new_input_units) #Conversion of units
+            measurement = nel_calc.nel_aux.ConvertMeasurement(rawMeasurement=rawMeasurement, oldUnits=old_input_units, newUnits=dict_new_output_units) #Conversion of units
             measurement["k_TP"] = pylinac.calibration.trs398.k_tp(temp = measurement["T"], press = measurement["P"])
             measurement["m_corrected"] = pylinac.calibration.trs398.m_corrected(m_reference=measurement["m"],
                                                             k_tp=measurement["k_TP"],
@@ -283,7 +293,7 @@ def analyze_preliminary(config_new: str | None,
     # .csv
     i = 0
     for i in range(len(measurement_list_tries)):
-        filePath = filenames[i]
+        filePath = filepaths[i]
         dirs = pathlib.Path(filePath).parent
         stem = pathlib.Path(filePath).stem
         suffix = pathlib.Path(filePath).suffix
@@ -293,7 +303,7 @@ def analyze_preliminary(config_new: str | None,
         with open(output_filePath, "w", encoding="utf-8", newline='') as csvFile:
             csvWriter = csv.DictWriter(csvFile, fieldnames=column_class)
             csvWriter.writeheader()
-            csvWriter.writerow(old_output_units)
+            csvWriter.writerow(dict_new_output_units)
             for measurement in measurement_list:
                 csvWriter.writerow(measurement)
             print(f"Output file {output_filename} created.")
@@ -330,8 +340,8 @@ def analyze_image_planar(
 
     cfg = nel_calc.nel_aux.load_toml_file(config_new) if config_new else {}
 
-    protocol = nel_calc.nel_aux.resolve_option2(protocol, cfg, "analyze-image-planar.protocol", required=True)
-    output = nel_calc.nel_aux.resolve_option2(output, cfg, "analyze-image-planar.output", required=True)
+    protocol = nel_calc.nel_aux.resolve_option2(protocol, cfg, "analyze-image-planar.protocol")
+    output = nel_calc.nel_aux.resolve_option2(output, cfg, "analyze-image-planar.output")
 
     # Check types
     if not isinstance(protocol, str | None):
@@ -364,20 +374,20 @@ def analyze_image_planar(
 
 # generate-calibration-report. OK
 @click.command()
-@click.argument("filename", type=click.Path(file_okay=True, dir_okay=False), required=True)
+@click.argument("filepath", type=click.Path(file_okay=True, dir_okay=False), required=True)
 @click.option("--config-new", type=click.Path(exists=True, file_okay=True), help="Config filename.")
 @click.option("--output", type=click.Path(file_okay=True, dir_okay=False), help="Output filename.")
 @click.option("--chamber", type=click.STRING, help="Chamber model.")
 @click.option("--clinical-pdd-zref", type=click.FLOAT, help="Clinical PDD Zref.")
-@click.option("--energy", type=click.FLOAT, help="Energy.")
+@click.option("--energy", type=click.INT, help="Energy.")
 @click.option("--fff", type=click.BOOL, help="FFF.")
 @click.option("--institution", type=click.STRING, help="Institution.")
 @click.option("--k-elec", type=click.FLOAT, help="K-electron.")
 @click.option("--m-opposite", type=click.Tuple([click.FLOAT, click.FLOAT, click.FLOAT]), help="M opposite.")
 @click.option("--m-reference", type=click.Tuple([click.FLOAT, click.FLOAT, click.FLOAT]), help="M reference.")
 @click.option("--m-reduced", type=click.Tuple([click.FLOAT, click.FLOAT, click.FLOAT]), help="M reduced.")
-@click.option("--measurement-date", type=click_datetime.Datetime(format="%Y-%m-%d"), help="Date of the measurement.")
-@click.option("--mu", type=click.FLOAT, help="MU.")
+@click.option("--measurement-date", type=click.STRING, help="Date of the measurement.")
+@click.option("--mu", type=click.INT, help="MU.")
 @click.option("--n-dw", type=click.FLOAT, help="N_Dw.")
 @click.option("--physicist", type=click.STRING, help="Physicist.")
 @click.option("--press", type=click.FLOAT, help="Pressure.")
@@ -386,25 +396,25 @@ def analyze_image_planar(
 @click.option("--tissue-correction", type=click.FLOAT, help="Tissue correction.")
 @click.option("--tpr2010", type=click.FLOAT, help="TPR2010.")
 @click.option("--unit", type=click.STRING, help="Unit.")
-@click.option("--voltage-reduced", type=click.FLOAT, help="Voltage reduced.")
-@click.option("--voltage-reference", type=click.FLOAT, help="Voltage reference.")
+@click.option("--voltage-reduced", type=click.INT, help="Voltage reduced.")
+@click.option("--voltage-reference", type=click.INT, help="Voltage reference.")
 @click.option("--notes", type=click.STRING, help="Notes.")
 # @click.option("--config", type=click.Path(exists=True, file_okay=True), help="Config filename.")
 def generate_calibration_report(
-    filename: str,
+    filepath: str,
     config_new: str,
     output: str,
     chamber: str,
     clinical_pdd_zref: float,
-    energy: float,
+    energy: int,
     fff: bool,
     institution: str,
     k_elec: float,
     m_opposite: tuple[float, float, float],
     m_reference: tuple[float, float, float],
     m_reduced: tuple[float, float, float],
-    measurement_date: datetime.datetime,
-    mu: float,
+    measurement_date: str,
+    mu: int,
     n_dw: float,
     physicist: str,
     press: float,
@@ -413,37 +423,43 @@ def generate_calibration_report(
     tissue_correction: float,
     tpr2010: float,
     unit: str,
-    voltage_reduced: float,
-    voltage_reference: float,
+    voltage_reduced: int,
+    voltage_reference: int,
     notes: str
 ):
     """Generate report about calibration."""
 
+    # Load config file
     cfg = nel_calc.nel_aux.load_toml_file(config_new) if config_new else {}
 
+    # Load calibration file
+    calibrationFile = nel_calc.nel_aux.load_toml_file(filepath)
+
+    # Load values from files
     output = nel_calc.nel_aux.resolve_option2(output, cfg, "generate-calibration-report.output")
-    chamber = nel_calc.nel_aux.resolve_option2(chamber, cfg, "generate-calibration-report.chamber")
-    clinical_pdd_zref = nel_calc.nel_aux.resolve_option2(clinical_pdd_zref, cfg, "generate-calibration-report.clinical-pdd-zref")
-    energy = nel_calc.nel_aux.resolve_option2(energy, cfg, "generate-calibration-report.energy")
-    fff = nel_calc.nel_aux.resolve_option2(fff, cfg, "generate-calibration-report.fff")
-    institution = nel_calc.nel_aux.resolve_option2(institution, cfg, "generate-calibration-report.institution")
-    k_elec = nel_calc.nel_aux.resolve_option2(k_elec, cfg,  "generate-calibration-report.k-elec")
-    m_opposite = nel_calc.nel_aux.resolve_option2(m_opposite, cfg, "generate-calibration-report.m-opposite")
-    m_reference = nel_calc.nel_aux.resolve_option2(m_reference, cfg, "generate-calibration-report.m-reference")
-    m_reduced = nel_calc.nel_aux.resolve_option2(m_reduced, cfg, "generate-calibration-report.m-reduced")
-    measurement_date = nel_calc.nel_aux.resolve_option2(measurement_date, cfg, "generate-calibration-report.measurement-date")
-    mu = nel_calc.nel_aux.resolve_option2(mu, cfg, "generate-calibration-report.mu")
-    n_dw = nel_calc.nel_aux.resolve_option2(n_dw, cfg, "generate-calibration-report.n-dw")
-    physicist = nel_calc.nel_aux.resolve_option2(physicist, cfg, "generate-calibration-report.physicist")
-    press = nel_calc.nel_aux.resolve_option2(press, cfg, "generate-calibration-report.press")
-    setup = nel_calc.nel_aux.resolve_option2(setup, cfg, "generate-calibration-report.setup")
-    temp = nel_calc.nel_aux.resolve_option2(temp, cfg, "generate-calibration-report.temp")
-    tissue_correction = nel_calc.nel_aux.resolve_option2(tissue_correction, cfg, "generate-calibration-report.tissue-correction")
-    tpr2010 = nel_calc.nel_aux.resolve_option2(tpr2010, cfg, "generate-calibration-report.tpr2010")
-    unit = nel_calc.nel_aux.resolve_option2(unit, cfg, "generate-calibration-report.unit")
-    voltage_reduced = nel_calc.nel_aux.resolve_option2(voltage_reduced, cfg, "generate-calibration-report.voltage-reduced")
-    voltage_reference = nel_calc.nel_aux.resolve_option2(voltage_reference, cfg, "generate-calibration-report.voltage-reference")
-    notes = nel_calc.nel_aux.resolve_option2(notes, cfg, "generate-calibration-report.notes")
+
+    chamber = nel_calc.nel_aux.resolve_option2(chamber, calibrationFile, "chamber")
+    clinical_pdd_zref = nel_calc.nel_aux.resolve_option2(clinical_pdd_zref, calibrationFile, "clinical-pdd-zref")
+    energy = nel_calc.nel_aux.resolve_option2(energy, calibrationFile, "energy")
+    fff = nel_calc.nel_aux.resolve_option2(fff, calibrationFile, "fff")
+    institution = nel_calc.nel_aux.resolve_option2(institution, calibrationFile, "institution")
+    k_elec = nel_calc.nel_aux.resolve_option2(k_elec, calibrationFile,  "k-elec")
+    m_opposite = nel_calc.nel_aux.resolve_option2(m_opposite, calibrationFile, "m-opposite")
+    m_reference = nel_calc.nel_aux.resolve_option2(m_reference, calibrationFile, "m-reference")
+    m_reduced = nel_calc.nel_aux.resolve_option2(m_reduced, calibrationFile, "m-reduced")
+    measurement_date = nel_calc.nel_aux.resolve_option2(measurement_date, calibrationFile, "measurement-date")
+    mu = nel_calc.nel_aux.resolve_option2(mu, calibrationFile, "mu")
+    n_dw = nel_calc.nel_aux.resolve_option2(n_dw, calibrationFile, "n-dw")
+    physicist = nel_calc.nel_aux.resolve_option2(physicist, calibrationFile, "physicist")
+    press = nel_calc.nel_aux.resolve_option2(press, calibrationFile, "press")
+    setup = nel_calc.nel_aux.resolve_option2(setup, calibrationFile, "setup")
+    temp = nel_calc.nel_aux.resolve_option2(temp, calibrationFile, "temp")
+    tissue_correction = nel_calc.nel_aux.resolve_option2(tissue_correction, calibrationFile, "tissue-correction")
+    tpr2010 = nel_calc.nel_aux.resolve_option2(tpr2010, calibrationFile, "tpr2010")
+    unit = nel_calc.nel_aux.resolve_option2(unit, calibrationFile, "unit")
+    voltage_reduced = nel_calc.nel_aux.resolve_option2(voltage_reduced, calibrationFile, "voltage-reduced")
+    voltage_reference = nel_calc.nel_aux.resolve_option2(voltage_reference, calibrationFile, "voltage-reference")
+    notes = nel_calc.nel_aux.resolve_option2(notes, calibrationFile, "notes")
     
     # Check types
     if not isinstance(output, str):
@@ -452,8 +468,8 @@ def generate_calibration_report(
         raise click.BadParameter("chamber must be a string")
     if not isinstance(clinical_pdd_zref, (int, float)):
         raise click.BadParameter("clinical_pdd_zref must be a number")
-    if not isinstance(energy, (int, float)):
-        raise click.BadParameter("energy must be a number")
+    if not isinstance(energy, int):
+        raise click.BadParameter("energy must be an integer")
     if not isinstance(fff, bool):
         raise click.BadParameter("fff must be a boolean")
     if not isinstance(institution, str):
@@ -466,10 +482,10 @@ def generate_calibration_report(
         raise click.BadParameter("m_reference must be a list or tuple of three numbers")
     if not (isinstance(m_reduced, (list, tuple)) and len(m_reduced) == 3 and all(isinstance(x, (int, float)) for x in m_reduced)):
         raise click.BadParameter("m_reduced must be a list or tuple of three numbers")
-    if not isinstance(measurement_date, datetime.date):
-        raise click.BadParameter("measurement_date must be a date")
-    if not isinstance(mu, (int, float)):
-        raise click.BadParameter("mu must be a number")
+    if not isinstance(measurement_date, str):
+        raise click.BadParameter("measurement_date must be a string")
+    if not isinstance(mu, int):
+        raise click.BadParameter("mu must be an integer")
     if not isinstance(n_dw, (int, float)):
         raise click.BadParameter("n_dw must be a number")
     if not isinstance(physicist, str):
@@ -486,44 +502,40 @@ def generate_calibration_report(
         raise click.BadParameter("tpr2010 must be a number")
     if not isinstance(unit, str):
         raise click.BadParameter("unit must be a string")
-    if not isinstance(voltage_reduced, (int, float)):
-        raise click.BadParameter("voltage_reduced must be a number")
-    if not isinstance(voltage_reference, (int, float)):
-        raise click.BadParameter("voltage_reference must be a number")
+    if not isinstance(voltage_reduced, int):
+        raise click.BadParameter("voltage_reduced must be an integer")
+    if not isinstance(voltage_reference, int):
+        raise click.BadParameter("voltage_reference must be an integer")
     if not isinstance(notes, str):
         raise click.BadParameter("notes must be a string")
 
-    # Load the input file.
-    with open(filename, "r", encoding = "utf-8") as inputFile:
-        inputJSON = json.load(inputFile)
-        
     trs398_calculator = pylinac.calibration.trs398.TRS398Photon(
-        chamber=inputJSON["chamber"],
-        clinical_pdd_zref=inputJSON["clinical_pdd_zref"],
-        energy=inputJSON["energy"],
-        fff=inputJSON["fff"],
-        institution=inputJSON["institution"],
-        k_elec=inputJSON["k_elec"],
-        m_opposite=inputJSON["m_opposite"],
-        m_reference=inputJSON["m_reference"],
-        m_reduced=inputJSON["m_reduced"],
-        measurement_date=inputJSON["measurement_date"],
-        mu=inputJSON["mu"],
-        n_dw=inputJSON["n_dw"],
-        physicist=inputJSON["physicist"],
-        press=inputJSON["press"],
-        setup=inputJSON["setup"],
-        temp=inputJSON["temp"],
-        tissue_correction=inputJSON["tissue_correction"],
-        tpr2010=inputJSON["tpr2010"],
-        unit=inputJSON["unit"],
-        voltage_reduced=inputJSON["voltage_reduced"],
-        voltage_reference=inputJSON["voltage_reference"]
+        chamber=chamber,
+        clinical_pdd_zref=clinical_pdd_zref,
+        energy=energy,
+        fff=fff,
+        institution=institution,
+        k_elec=k_elec,
+        m_opposite=m_opposite,
+        m_reference=m_reference,
+        m_reduced=m_reduced,
+        measurement_date=measurement_date,
+        mu=mu,
+        n_dw=n_dw,
+        physicist=physicist,
+        press=press,
+        setup=setup,
+        temp=temp,
+        tissue_correction=tissue_correction,
+        tpr2010=tpr2010,
+        unit=unit,
+        voltage_reduced=voltage_reduced,
+        voltage_reference=voltage_reference
     )
 
     trs398_calculator.publish_pdf(
         filename=output,
-        notes=inputJSON["notes"],
+        notes=notes,
         open_file=False
         )
     click.echo(f"Output file {output} created.")
@@ -612,7 +624,7 @@ def generate_graph(
 
 cli.add_command(create_config)
 cli.add_command(create_image_planar)
-cli.add_command(create_calibration)
+#cli.add_command(create_calibration)
 cli.add_command(analyze_preliminary)
 cli.add_command(analyze_image_planar)
 cli.add_command(generate_calibration_report)

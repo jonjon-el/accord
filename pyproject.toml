@@ -22,3 +22,9 @@ Issues = "https://github.com/jonjon-el/nel_calc/issues"
 
 [project.scripts]
 nel_calc = "nel_calc.__main__:main"
+
+[tool.flit.module]
+name = "nel_calc"
+
+[tool.flit.sdist]
+include = ["nel_calc/config_new.toml"]
