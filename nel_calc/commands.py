@@ -230,7 +230,7 @@ def analyze_preliminary(config_new: str | None,
         with open(filepath, "r", encoding = "utf-8") as csvFile:
             csvDictReader = csv.DictReader(csvFile)
             input_header = csvDictReader.fieldnames # Getting the current header in first line
-            old_input_units = next(csvDictReader) # Getting the units in second line
+            old_input_units = next(csvDictReader) # Getting the units in second line. Try deleting for specify in config file.
             rawMeasurement_list = list()
             for row in csvDictReader: # Getting the values
                 rawMeasurement = nel_calc.nel_aux.Row2Measurement(row=row, header=input_header, baseTypes=dict_default_basetypes)
@@ -304,6 +304,7 @@ def analyze_preliminary(config_new: str | None,
             csvWriter = csv.DictWriter(csvFile, fieldnames=column_class)
             csvWriter.writeheader()
             csvWriter.writerow(dict_new_output_units)
+            measurement_list = measurement_list_tries[i]
             for measurement in measurement_list:
                 csvWriter.writerow(measurement)
             print(f"Output file {output_filename} created.")
