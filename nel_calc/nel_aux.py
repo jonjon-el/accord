@@ -124,7 +124,7 @@ def FindStdDev(numberList: list) -> float:
     acum = 0
     for number in numberList:
         acum = acum + (number - average) ** 2
-    return (acum / len(numberList)) ** 0.5
+    return (acum / (len(numberList)-1)) ** 0.5
 
 def FindExpectedValue(numberList: list) -> float:
     return FindAverage(numberList)
