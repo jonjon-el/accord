@@ -80,10 +80,10 @@ def create_config(filepath: str):
 @click.command()
 @click.argument("filename", type=click.Path(file_okay=True, dir_okay=False), required=True)
 @click.option("--config-new", type=click.Path(exists=True, file_okay=True), help="Config filename.")
-@click.option("--field-size-mm", type=click.Tuple([click.FLOAT, click.FLOAT]), callback=validate_config_path_exclusive_option, help="Field size in mm.")
-@click.option("--sigma-mm", type=click.FLOAT, callback=validate_config_path_exclusive_option, help="Sigma in mm for the Gaussian filter.")
-@click.option("--gantry-angle", type=click.FLOAT, callback=validate_config_path_exclusive_option, help="Gantry angle in degrees.")
-@click.option("--epid", type=str, callback=validate_config_path_exclusive_option, help="Name of the EPID that will be simulated.")
+@click.option("--field-size-mm", type=click.Tuple([click.FLOAT, click.FLOAT]), help="Field size in mm.")
+@click.option("--sigma-mm", type=click.FLOAT, help="Sigma in mm for the Gaussian filter.")
+@click.option("--gantry-angle", type=click.FLOAT, help="Gantry angle in degrees.")
+@click.option("--epid", type=str, help="Name of the EPID that will be simulated.")
 def create_image_planar(
     filename: str,
     config_new: str,
@@ -327,8 +327,8 @@ def analyze_preliminary(config_new: str | None,
 # analyze-image-planar. OK
 @click.command()
 @click.argument("filename", type=click.Path(file_okay=True, dir_okay=False), required=True)
-@click.option("--protocol", type=click.STRING, callback=validate_config_path_exclusive_option, help="Protocol used for calculations.")
-@click.option("--output", type=click.Path(file_okay=True, dir_okay=False), callback=validate_config_path_exclusive_option, help="Output analysis filename.")
+@click.option("--protocol", type=click.STRING, help="Protocol used for calculations.")
+@click.option("--output", type=click.Path(file_okay=True, dir_okay=False), help="Output analysis filename.")
 # @click.option("--config", type=click.Path(exists=True, file_okay=True), callback=validate_config_path_exclusive_option, help="Config filename.")
 @click.option("--config-new", type=click.Path(exists=True, file_okay=True), help="Config filename.")
 def analyze_image_planar(
