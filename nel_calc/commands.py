@@ -54,20 +54,28 @@ def cli():
     """Main command line interface for the program."""
     pass
 
-#command to create a config file
+#command to copy a sample file
 @click.command()
 @click.argument("filepath", type=click.Path(file_okay=True, dir_okay=False), required=True)
-def create_config(filepath: str):
-    """Create a config file."""    
+@click.option("--type", type=click.Choice(["config", "calibration"]), required=True, help="Type of sample file to copy.")
+def copy_sample(filepath: str, type: str):
+    """Copy a sample file."""
     # Check if the file already exists.
     if pathlib.Path(filepath).exists():
         raise click.BadParameter("File already exists. Please choose a different name or delete the existing file.")
+    
     # with open(filepath, "w", encoding="utf-8") as configFile:
         # Creating file structure
         # configDoc = tomlkit.document()
         # configDoc.add(tomlkit.comment("Default configuration file for nel_calc."))
 
-    configTraversable = importlib.resources.files("nel_calc").joinpath("config_new.toml")
+    if type == "config":
+        configTraversable = importlib.resources.files("nel_calc").joinpath("sampleFiles/config.toml")
+    elif type == "calibration":
+        configTraversable = importlib.resources.files("nel_calc").joinpath("sampleFiles/calibration.toml")
+    else:
+        raise click.BadParameter("Invalid file type. Please choose 'config' or 'calibration'.")
+
     with importlib.resources.as_file(configTraversable) as configPath:
         shutil.copy(configPath, filepath)
             
@@ -623,7 +631,7 @@ def generate_graph(
     click.echo(f"Graph saved as {output}")
     sys.exit(0)
 
-cli.add_command(create_config)
+cli.add_command(copy_sample)
 cli.add_command(create_image_planar)
 #cli.add_command(create_calibration)
 cli.add_command(analyze_preliminary)
