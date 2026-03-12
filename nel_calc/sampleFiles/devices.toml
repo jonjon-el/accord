@@ -1,0 +1,8 @@
+[termometer]
+resolution = 0.01  # Example value for the resolution of the temperature measurement
+accuracy = 0.05    # Example value for the accuracy of the temperature measurement
+
+[barometer]
+resolution = 0.01  # 0.1 hPa
+accuracy = 0.1    # 1.0 hPa from the accuracy of the pressure measurement. The resolution is added to the accuracy to be more conservative in the uncertainty estimation.
+

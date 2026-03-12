@@ -1,10 +1,12 @@
+import pathlib
+
 import pylinac.calibration.trs398
 import tomllib
 import click
 
 
 # Load a TOML file
-def load_toml_file(path):
+def load_toml_file(path: pathlib.Path) -> dict[str, object]:
     with open(path, "rb") as f:
         return tomllib.load(f)
 
@@ -72,7 +74,7 @@ def GetBaseTypes(config_quantities: dict) -> dict:
         baseTypes[key] = config_quantities[key]["baseType"]
     return baseTypes
 
-def Row2Measurement(row: dict, header: dict, baseTypes: dict) -> dict:
+def Row2Measurement(row: dict, baseTypes: dict) -> dict:
     """
     Convert a row from the CSV file into a measurement dictionary.
     """
@@ -82,6 +84,24 @@ def Row2Measurement(row: dict, header: dict, baseTypes: dict) -> dict:
             measurement[key] = int(row[key])
         elif baseTypes[key] == "float":
             measurement[key] = float(row[key])
+
+    return measurement
+
+def Row2Measurement2(row: dict, quantities: dict) -> dict:
+    """
+    Convert a dictionary containing a row from the CSV file to a dictionary containing the same values but with the correct base types.
+    Base types are obtained from the quantities dictionary in the json file.
+    """
+    measurement = dict()
+    for key in row:
+        if quantities[key]["baseType"] == "int":
+            measurement[key] = int(row[key])
+        elif quantities[key]["baseType"] == "float":
+            measurement[key] = float(row[key])
+        elif quantities[key]["baseType"] == "str":
+            measurement[key] = row[key]
+        elif quantities[key]["baseType"] == "bool":
+            measurement[key] = row[key].lower() in ("true")
 
     return measurement
 
@@ -111,6 +131,28 @@ def ConvertMeasurement(rawMeasurement: dict, oldUnits: dict, newUnits: dict) -> 
             # elif key == "m_corrected":
             #     measurement[key] = trs398.convert_charge(rawMeasurement[key], oldUnits[key], newUnits[key])
     return measurement
+
+def Convert_measurement_to_pylinac_units(measurement: dict, oldUnits: dict) -> dict:
+    converted_measurement = measurement.copy()
+    for key in converted_measurement:
+        if key == "T":
+            if oldUnits[key] == "°F":
+                converted_measurement[key] = pylinac.calibration.trs398.fahrenheit2celsius(converted_measurement[key])
+            elif oldUnits[key] == "°C":
+                pass
+            else:
+                raise ValueError(f"Invalid temperature unit: {oldUnits[key]}")
+        elif key == "P":
+            if oldUnits[key] == "mbar":
+                converted_measurement[key] = pylinac.calibration.trs398.mbar2kPa(converted_measurement[key])
+            elif oldUnits[key] == "mmHg":
+                converted_measurement[key] = pylinac.calibration.trs398.mmHg2kPa(converted_measurement[key])
+            elif oldUnits[key] == "kPa":
+                pass
+            else:
+                raise ValueError(f"Invalid pressure unit: {oldUnits[key]}")
+            
+    return converted_measurement
 
 def FindAverage(numberList: list) -> float:
     acum = 0

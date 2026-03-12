@@ -11,7 +11,7 @@ measurement-date = "2025-05-16"
 mu = 200
 n-dw = 5.443
 physicist = "Lic. Nelson Sandoval Puente"
-press = 100.65839
+press = {value = 100.65839, unit = "kPa"}
 setup = "SSD"
 temp = 22.1
 tissue-correction = 1.0
@@ -19,4 +19,4 @@ tpr2010 = 0.573573574
 unit = "Elekta Precise"
 voltage-reduced = -150
 voltage-reference = -300
-notes = "Sample note."
+notes = ["Sample note 1.", "Sample note 2."]
