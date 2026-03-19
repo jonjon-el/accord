@@ -171,10 +171,6 @@ def create_image_planar(
 @click.option("--input-preffix", type=click.STRING, help="Input fileName preffix.")
 @click.option("--output-preffix", type=click.STRING, help="Output fileName preffix.")
 @click.option("--filetype", type=click.STRING, help="FileType of the input and output files.")
-@click.option("--default-basetypes", type=click.Tuple([click.STRING, click.STRING, click.STRING, click.STRING, click.STRING, click.STRING]), help="Default basetypes of the values in the columns of csv files.")
-@click.option("--column-class", type=click.Tuple([click.STRING, click.STRING, click.STRING, click.STRING, click.STRING, click.STRING]), help="Class of the values in the columns of csv files.")
-@click.option("--new-input-units", type=click.Tuple([click.STRING, click.STRING, click.STRING, click.STRING, click.STRING, click.STRING]), help="Units of the values in the columns of csv input file.")
-@click.option("--new-output-units", type=click.Tuple([click.STRING, click.STRING, click.STRING, click.STRING, click.STRING, click.STRING]), help="Units of the values in the columns of csv output file.")
 @click.option("--max-PTP", type=click.FLOAT, help="Maximum limit for PTP.")
 @click.option("--ref-temp", type=click.FLOAT, help="Reference temperature for k_TP calculation.")
 def analyze_preliminary(config: pathlib.Path,
@@ -185,10 +181,6 @@ def analyze_preliminary(config: pathlib.Path,
                         input_preffix: str,
                         output_preffix: str,
                         filetype: str,
-                        default_basetypes: tuple[str, str, str, str, str, str],
-                        column_class: tuple[str, str, str, str, str, str],
-                        new_input_units: tuple[str, str, str, str, str, str],
-                        new_output_units: tuple[str, str, str, str, str, str],
                         max_ptp: float,
                         ref_temp: float):
     """Analyze calibration preliminary data about measurements."""
@@ -200,10 +192,6 @@ def analyze_preliminary(config: pathlib.Path,
     output_preffix = nel_calc.nel_aux.resolve_option2(output_preffix, cfg, "analyze-preliminary.output-preffix")
     filetype = nel_calc.nel_aux.resolve_option2(filetype, cfg, "analyze-preliminary.filetype")
     summary = nel_calc.nel_aux.resolve_option2(summary, cfg, "analyze-preliminary.summary")
-    default_basetypes = nel_calc.nel_aux.resolve_option2(default_basetypes, cfg, "analyze-preliminary.default-basetypes")
-    column_class = nel_calc.nel_aux.resolve_option2(column_class, cfg, "analyze-preliminary.column-class")
-    new_input_units = nel_calc.nel_aux.resolve_option2(new_input_units, cfg, "analyze-preliminary.new-input-units")
-    new_output_units = nel_calc.nel_aux.resolve_option2(new_output_units, cfg, "analyze-preliminary.new-output-units")
     max_ptp = nel_calc.nel_aux.resolve_option2(max_ptp, cfg, "analyze-preliminary.max-PTP")
     ref_temp = nel_calc.nel_aux.resolve_option2(ref_temp, cfg, "analyze-preliminary.ref-temp")
     devices = nel_calc.nel_aux.resolve_option2(devices, cfg, "analyze-preliminary.devices")
@@ -245,34 +233,6 @@ def analyze_preliminary(config: pathlib.Path,
         safe["summary"] = summary
     else:
         raise click.BadParameter("summary must be a pathlib.Path or a string.")
-
-    if isinstance(default_basetypes, list) and len(default_basetypes) == 6 and all(isinstance(x, str) for x in default_basetypes):
-        safe["default_basetypes"] = tuple(default_basetypes)
-    elif isinstance(default_basetypes, tuple) and len(default_basetypes) == 6 and all(isinstance(x, str) for x in default_basetypes):
-        safe["default_basetypes"] = default_basetypes
-    else:
-        raise click.BadParameter("default-basetypes must be a tuple of strings and of length 6.")
-    
-    if isinstance(column_class, list) and len(column_class) == 6 and all(isinstance(x, str) for x in column_class):
-        safe["column_class"] = tuple(column_class)
-    elif isinstance(column_class, tuple) and len(column_class) == 6 and all(isinstance(x, str) for x in column_class):
-        safe["column_class"] = column_class
-    else:
-        raise click.BadParameter("column-class must be a tuple of strings and of length 6.")
-
-    if isinstance(new_input_units, list):
-        safe["new_input_units"] = tuple(new_input_units)
-    elif isinstance(new_input_units, tuple):
-        safe["new_input_units"] = new_input_units
-    else:
-        raise click.BadParameter("new-input-units must be a tuple of strings.")
-    
-    if isinstance(new_output_units, list):
-        safe["new_output_units"] = tuple(new_output_units)
-    elif isinstance(new_output_units, tuple):
-        safe["new_output_units"] = new_output_units
-    else:
-        raise click.BadParameter("new-output-units must be a tuple of strings.")
     
     if isinstance(max_ptp, float):
         safe["max_ptp"] = max_ptp
@@ -378,8 +338,12 @@ def analyze_preliminary(config: pathlib.Path,
             # Example of how to access the data:
             termometer_resolution = devicesData["termometer"]["resolution"]
             termometer_accuracy = devicesData["termometer"]["accuracy"]
+            termometer_distribution = devicesData["termometer"]["distribution"]
+            termometer_k = devicesData["termometer"]["k"]
             barometer_resolution = devicesData["barometer"]["resolution"]
             barometer_accuracy = devicesData["barometer"]["accuracy"]
+            barometer_distribution = devicesData["barometer"]["distribution"]
+            barometer_k = devicesData["barometer"]["k"]
     except tomllib.TOMLDecodeError as e:
         print(f"Error at line {e.lineno}, col {e.colno}: {e.msg}")
     except FileNotFoundError:
@@ -389,11 +353,11 @@ def analyze_preliminary(config: pathlib.Path,
 
     # Calculating standard uncertainties.
     u_L = nel_calc.metrology.calc_u_A(*m_corrected_averageList)
-    u_T_resolution = nel_calc.metrology.calc_u_B(error_value=termometer_resolution, distribution="rectangular")
-    u_T_accuracy = nel_calc.metrology.calc_u_B(error_value=termometer_accuracy, distribution="normal", k=2)
+    u_T_resolution = nel_calc.metrology.calc_u_B(error_value=termometer_resolution, distribution=termometer_distribution, k=termometer_k)
+    u_T_accuracy = nel_calc.metrology.calc_u_B(error_value=termometer_accuracy, distribution=termometer_distribution, k=termometer_k)
     u_T = nel_calc.metrology.calc_u_c(u_T_resolution, u_T_accuracy)
-    u_P_resolution = nel_calc.metrology.calc_u_B(error_value=barometer_resolution, distribution="rectangular")
-    u_P_accuracy = nel_calc.metrology.calc_u_B(error_value=barometer_accuracy, distribution="rectangular")
+    u_P_resolution = nel_calc.metrology.calc_u_B(error_value=barometer_resolution, distribution=barometer_distribution, k=barometer_k)
+    u_P_accuracy = nel_calc.metrology.calc_u_B(error_value=barometer_accuracy, distribution=barometer_distribution, k=barometer_k)
     u_P = nel_calc.metrology.calc_u_c(u_P_resolution, u_P_accuracy)
 
     # Calculating sensitivity coefficients.
@@ -404,15 +368,30 @@ def analyze_preliminary(config: pathlib.Path,
     # Calculating combined standard uncertainty.
     u_c = nel_calc.metrology.calc_u_c(c_L*u_L, c_T*u_T, c_P*u_P)
     
+    # Coverage factor for a confidence level of approximately 95% for a normal distribution.
+    # TODO: Calculate the effective degrees of freedom and the corresponding coverage factor with the Welch-Satterthwaite formula or specify in command line.
+    k = 2
+    
     # Calculating expanded uncertainty.
-    k = 2 # This is an example value for the coverage factor. It should be replaced with the actual coverage factor.
-    U = nel_calc.metrology.calc_U(u_c, k) # This is an example value for the coverage factor. It should be replaced with the actual coverage factor.
+    U = nel_calc.metrology.calc_U(u_c, k)
 
     print(f"Mean of corrected values (Series 1, 2, 3): {m_corrected_average_123: .3f}")
+    
+    print("Sensitivity coefficients:")
+    print(f"  Sensitivity coefficient for repetibility c_L: {c_L: .3f}")
+    print(f"  Sensitivity coefficient for measurement temperature c_T: {c_T: .3f}")
+    print(f"  Sensitivity coefficient for measurement pressure c_P: {c_P: .3f}")
+    
     print("Standard uncertainties:")
     print(f"  Standard uncertainty for repetibility u_L: {u_L: .3f}")
     print(f"  Standard uncertainty for measurement temperature u_T: {u_T: .3f}")
     print(f"  Standard uncertainty for measurement pressure u_P: {u_P: .3f}")
+
+    print("Standard uncertainties for sensitivity coefficients:")
+    print(f"  Standard uncertainty for sensitivity coefficient c_L*u_L: {c_L*u_L: .3f}")
+    print(f"  Standard uncertainty for sensitivity coefficient c_T*u_T: {c_T*u_T: .3f}")
+    print(f"  Standard uncertainty for sensitivity coefficient c_P*u_P: {c_P*u_P: .3f}")
+
     print(f"Combined standard uncertainty: {u_c: .3f}")
     print(f"Coverage factor: 2")
     print(f"Expanded uncertainty (Series 1, 2, 3): {U: .3f}")
@@ -471,9 +450,6 @@ def analyze_preliminary(config: pathlib.Path,
     # Create the summary file.
     # .json
     output_quantities = dict()
-    # output_quantities["m_corrected_average"] = m_corrected_average
-    # output_quantities["m_corrected_stdDev"] = m_corrected_stdDev
-    # output_quantities["m_corrected_expectedValue"] = m_corrected_expectedValue
     output_quantities["m_corrected_average"] = m_corrected_average_123
     output_quantities["c_L"] = c_L
     output_quantities["c_T"] = c_T
@@ -481,6 +457,9 @@ def analyze_preliminary(config: pathlib.Path,
     output_quantities["u_L"] = u_L
     output_quantities["u_T"] = u_T
     output_quantities["u_P"] = u_P
+    output_quantities["c_L*u_L"] = c_L * u_L
+    output_quantities["c_T*u_T"] = c_T * u_T
+    output_quantities["c_P*u_P"] = c_P * u_P
     output_quantities["u_c"] = u_c
     output_quantities["k"] = k
     output_quantities["U"] = U
@@ -488,7 +467,7 @@ def analyze_preliminary(config: pathlib.Path,
     summaryPath = safe["summary"] # TODO: Check if summary should really be inside output_dir
     with open(summaryPath, "w", encoding="utf-8") as summaryFile:
         json.dump(output_quantities, summaryFile, indent=4)
-        print(f"Output file {summary} created.")
+        print(f"Output file {safe['summary']} created.")
 
     click.echo("Preliminary analysis done.")
     sys.exit(0)

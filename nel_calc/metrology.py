@@ -64,6 +64,8 @@ def calc_u_B(error_value: float, distribution: str, k: float|None = None) -> flo
     elif distribution == "normal":
         if k is None:
             raise ValueError("Coverage factor 'k' is required for normal distribution.")
+        if k <= 0:
+            raise ValueError("Coverage factor 'k' must be a positive number.")
         u_B = error_value / k
     else:
         raise ValueError("Unsupported distribution type. Supported types are: 'rectangular', 'triangular', 'normal'.")
