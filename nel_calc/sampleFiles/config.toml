@@ -14,6 +14,7 @@ summary = "summary.json"
 max-PTP = 1.2
 ref-temp = 20.0
 devices = "devices.toml"
+k = 2.0
 
 [analyze-image-planar]
 protocol = "elekta"

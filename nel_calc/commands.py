@@ -10,9 +10,12 @@ import importlib.resources
 import shutil
 
 import pylinac.calibration.trs398
+import pylinac.calibration.tg51
 import pylinac.core.image_generator.layers
 import pylinac
 print(f"Pylinac version: {pylinac.__version__}")
+from nel_calc.trs398custom import TRS398Custom
+
 import click
 # import click_datetime
 # import pandas as pd
@@ -173,6 +176,7 @@ def create_image_planar(
 @click.option("--filetype", type=click.STRING, help="FileType of the input and output files.")
 @click.option("--max-PTP", type=click.FLOAT, help="Maximum limit for PTP.")
 @click.option("--ref-temp", type=click.FLOAT, help="Reference temperature for k_TP calculation.")
+@click.option("--k", type=click.FLOAT, help="Coverage factor for calculating expanded uncertainty using normal distribution.")
 def analyze_preliminary(config: pathlib.Path,
                         summary: pathlib.Path,
                         devices: pathlib.Path,
@@ -182,7 +186,8 @@ def analyze_preliminary(config: pathlib.Path,
                         output_preffix: str,
                         filetype: str,
                         max_ptp: float,
-                        ref_temp: float):
+                        ref_temp: float,
+                        k: float):
     """Analyze calibration preliminary data about measurements."""
 
     cfg = nel_calc.nel_aux.load_toml_file(config) if config else {}
@@ -195,7 +200,8 @@ def analyze_preliminary(config: pathlib.Path,
     max_ptp = nel_calc.nel_aux.resolve_option2(max_ptp, cfg, "analyze-preliminary.max-PTP")
     ref_temp = nel_calc.nel_aux.resolve_option2(ref_temp, cfg, "analyze-preliminary.ref-temp")
     devices = nel_calc.nel_aux.resolve_option2(devices, cfg, "analyze-preliminary.devices")
-
+    k = nel_calc.nel_aux.resolve_option2(k, cfg, "analyze-preliminary.k")
+    
     # Check types
     safe = dict()
     if isinstance(input_dir, str):
@@ -250,6 +256,11 @@ def analyze_preliminary(config: pathlib.Path,
         safe["devices"] = devices
     else:
         raise click.BadParameter("devices must be a pathlib.Path or a string.")
+
+    if isinstance(k, float):
+        safe["k"] = k
+    else:
+        raise click.BadParameter("k must be a float.")
 
     ## from data files to tables of values with the appropiate base types.
 
@@ -370,10 +381,10 @@ def analyze_preliminary(config: pathlib.Path,
     
     # Coverage factor for a confidence level of approximately 95% for a normal distribution.
     # TODO: Calculate the effective degrees of freedom and the corresponding coverage factor with the Welch-Satterthwaite formula or specify in command line.
-    k = 2
+    # k = 2
     
     # Calculating expanded uncertainty.
-    U = nel_calc.metrology.calc_U(u_c, k)
+    U = nel_calc.metrology.calc_U(u_c, safe["k"])
 
     print(f"Mean of corrected values (Series 1, 2, 3): {m_corrected_average_123: .3f}")
     
@@ -539,6 +550,68 @@ def analyze_image_planar(
     click.echo(f"2D images analyzed.")
     sys.exit(0)
 
+# # generate-calibration-report.
+# @click.command()
+# @click.argument("path", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), required=True)
+# @click.option("--config", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), help="Config filename.")
+# @click.option("--output", type=click.Path(file_okay=True, dir_okay=False, path_type=pathlib.Path), help="Output filename.")
+# @click.option("--chamber", type=click.STRING, help="Chamber model.")
+# @click.option("--clinical-pdd-zref", type=click.FLOAT, help="Clinical PDD Zref.")
+# @click.option("--energy", type=click.INT, help="Energy.")
+# @click.option("--fff", type=click.BOOL, help="FFF.")
+# @click.option("--institution", type=click.STRING, help="Institution.")
+# @click.option("--k-elec", type=click.FLOAT, help="K-electron.")
+# # @click.option("--m-opposite", type=click.FLOAT, nargs=3, help="M opposite.")
+# @click.option("--m-reference", type=click.FLOAT, nargs=3, help="M reference.")
+# # @click.option("--m-reduced", type=click.FLOAT, nargs=3, help="M reduced.")
+# @click.option("--measurement-date", type=click.STRING, help="Date of the measurement.")
+# @click.option("--mu", type=click.INT, help="MU.")
+# @click.option("--n-dw", type=click.FLOAT, help="N_Dw.")
+# @click.option("--physicist", type=click.STRING, help="Physicist.")
+# @click.option("--press", type=click.Tuple([click.FLOAT, click.Choice(['kPa', 'mbar', 'mmHg'])]), help="Pressure.")
+# @click.option("--setup", type=click.STRING, help="Experimental setup.")
+# @click.option("--temp", type=click.FLOAT, help="Temperature.")
+# @click.option("--tissue-correction", type=click.FLOAT, help="Tissue correction.")
+# # @click.option("--tpr2010", type=click.FLOAT, help="TPR2010.")
+# @click.option("--unit", type=click.STRING, help="Unit.")
+# # @click.option("--voltage-reduced", type=click.INT, help="Voltage reduced.")
+# # @click.option("--voltage-reference", type=click.INT, help="Voltage reference.")
+# @click.option("--notes", type=click.STRING, multiple=True, help="Notes.")
+# @click.option("--ref-temp", type=click.FLOAT, help="Reference temperature.")
+# @click.option("--k-q-direct", type=click.FLOAT, help="K-Q direct.")
+# @click.option("--k-s", type=click.FLOAT, help="K-s correction factor.")
+# @click.option("--k-pol", type=click.FLOAT, help="K-pol correction factor.")
+# def generate_calibration_report(
+#     path: pathlib.Path,
+#     config: pathlib.Path,
+#     output: pathlib.Path,
+#     chamber: str,
+#     clinical_pdd_zref: float,
+#     energy: int,
+#     fff: bool,
+#     institution: str,
+#     k_elec: float,
+#     m_opposite: tuple[float, float, float]|None,
+#     m_reference: tuple[float, float, float]|None,
+#     m_reduced: tuple[float, float, float]|None,
+#     measurement_date: str,
+#     mu: int,
+#     n_dw: float,
+#     physicist: str,
+#     press: tuple[float, str],
+#     setup: str,
+#     temp: float,
+#     tissue_correction: float,
+#     tpr2010: float,
+#     unit: str,
+#     voltage_reduced: int,
+#     voltage_reference: int,
+#     notes: tuple[str, ...],
+#     ref_temp: float,
+#     k_q_direct: float,
+#     k_s: float,
+#     k_pol: float
+# ):
 # generate-calibration-report.
 @click.command()
 @click.argument("path", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), required=True)
@@ -550,9 +623,9 @@ def analyze_image_planar(
 @click.option("--fff", type=click.BOOL, help="FFF.")
 @click.option("--institution", type=click.STRING, help="Institution.")
 @click.option("--k-elec", type=click.FLOAT, help="K-electron.")
-@click.option("--m-opposite", type=click.Tuple([click.FLOAT, click.FLOAT, click.FLOAT]), help="M opposite.")
-@click.option("--m-reference", type=click.Tuple([click.FLOAT, click.FLOAT, click.FLOAT]), help="M reference.")
-@click.option("--m-reduced", type=click.Tuple([click.FLOAT, click.FLOAT, click.FLOAT]), help="M reduced.")
+@click.option("--m-opposite", type=click.FLOAT, nargs=3, help="M opposite.")
+@click.option("--m-reference", type=click.FLOAT, nargs=3, help="M reference.")
+@click.option("--m-reduced", type=click.FLOAT, nargs=3, help="M reduced.")
 @click.option("--measurement-date", type=click.STRING, help="Date of the measurement.")
 @click.option("--mu", type=click.INT, help="MU.")
 @click.option("--n-dw", type=click.FLOAT, help="N_Dw.")
@@ -566,7 +639,10 @@ def analyze_image_planar(
 @click.option("--voltage-reduced", type=click.INT, help="Voltage reduced.")
 @click.option("--voltage-reference", type=click.INT, help="Voltage reference.")
 @click.option("--notes", type=click.STRING, multiple=True, help="Notes.")
-@click.option("--ref-temp", type=click.FLOAT, help="Reference temperature.")
+# @click.option("--ref-temp", type=click.FLOAT, help="Reference temperature.")
+# @click.option("--k-q-direct", type=click.FLOAT, help="K-Q direct.")
+# @click.option("--k-s", type=click.FLOAT, help="K-s correction factor.")
+# @click.option("--k-pol", type=click.FLOAT, help="K-pol correction factor.")
 def generate_calibration_report(
     path: pathlib.Path,
     config: pathlib.Path,
@@ -588,12 +664,15 @@ def generate_calibration_report(
     setup: str,
     temp: float,
     tissue_correction: float,
-    tpr2010: float,
     unit: str,
-    voltage_reduced: int,
-    voltage_reference: int,
     notes: tuple[str, ...],
-    ref_temp: float
+    tpr2010: float,
+    voltage_reduced: int,
+    voltage_reference: int
+    # ref_temp: float,
+    # k_q_direct: float,
+    # k_s: float,
+    # k_pol: float
 ):
     """Generate report about calibration."""
 
@@ -605,7 +684,7 @@ def generate_calibration_report(
 
     # Load values from files
     output = nel_calc.nel_aux.resolve_option2(output, cfg, "generate-calibration-report.output")
-    ref_temp = nel_calc.nel_aux.resolve_option2(ref_temp, cfg, "generate-calibration-report.ref-temp")
+    # ref_temp = nel_calc.nel_aux.resolve_option2(ref_temp, cfg, "generate-calibration-report.ref-temp")
 
     chamber = nel_calc.nel_aux.resolve_option2(chamber, calibrationFile, "chamber")
     clinical_pdd_zref = nel_calc.nel_aux.resolve_option2(clinical_pdd_zref, calibrationFile, "clinical-pdd-zref")
@@ -629,7 +708,10 @@ def generate_calibration_report(
     voltage_reduced = nel_calc.nel_aux.resolve_option2(voltage_reduced, calibrationFile, "voltage-reduced")
     voltage_reference = nel_calc.nel_aux.resolve_option2(voltage_reference, calibrationFile, "voltage-reference")
     notes = nel_calc.nel_aux.resolve_option2(notes, calibrationFile, "notes")
-    
+    # k_q_direct = nel_calc.nel_aux.resolve_option2(k_q_direct, calibrationFile, "k-q-direct")
+    # k_s = nel_calc.nel_aux.resolve_option2(k_s, calibrationFile, "k-s")
+    # k_pol = nel_calc.nel_aux.resolve_option2(k_pol, calibrationFile, "k-pol")
+
     # Check types
     safe = dict()
     if isinstance(output, str):
@@ -718,8 +800,6 @@ def generate_calibration_report(
     else:
         raise click.BadParameter("press must be a tuple of a float and a string")
     
-
-
     if isinstance(setup, str):
         safe["setup"] = setup
     else:
@@ -762,10 +842,28 @@ def generate_calibration_report(
     else:
         raise click.BadParameter("notes must be a list of strings")
     
-    if isinstance(ref_temp, float):
-        safe["ref_temp"] = ref_temp
-    else:
-        raise click.BadParameter("ref_temp must be a float")
+    # if isinstance(ref_temp, float):
+    #     safe["ref_temp"] = ref_temp
+    # else:
+    #     raise click.BadParameter("ref_temp must be a float")
+    
+    # # Maybe not present
+    # if isinstance(k_q_direct, float):
+    #     safe["k_q_direct"] = k_q_direct
+    # else:
+    #     raise click.BadParameter("k_q_direct must be a float")
+
+    # # Maybe not present
+    # if isinstance(k_s, float):
+    #     safe["k_s"] = k_s
+    # else:
+    #     raise click.BadParameter("k_s must be a float")
+
+    # # Maybe not present
+    # if isinstance(k_pol, float):
+    #     safe["k_pol"] = k_pol
+    # else:
+    #     raise click.BadParameter("k_pol must be a float")
 
     #Check and apply conversion of pressure to kPa if needed.
     if safe["press"][1] == "kPa":
@@ -776,6 +874,62 @@ def generate_calibration_report(
         press_kPa = pylinac.trs398.mmHg2kPa(safe["press"][0])
     else:
         raise click.BadParameter("Invalid pressure unit. Must be 'kPa', 'mbar', or 'mmHg'.")
+    
+    # Fusions
+    # fusion = dict()
+    # if safe["p_ion"] is not None:
+    #     fusion["p_ion"] = safe["p_ion"]
+    # else:
+    #     fusion["p_ion"] = safe["k_s"]
+    #     # fusion["p_ion"] = pylinac.calibration.trs398.p_ion(chamber=safe["chamber"], energy=safe["energy"])
+
+    # trs398_calculator = pylinac.calibration.trs398.TRS398Photon(
+    #     setup=safe["setup"],
+    #     mu=safe["mu"],
+    #     energy=safe["energy"],
+    #     n_dw=safe["n_dw"],
+    #     k_fgh = safe["k_q_direct"],
+    #     k_s = safe["k_s"],
+    #     k_pol = safe["k_pol"],
+    #     temperature=safe["temp"],
+    #     pressure=safe["press"],
+    #     m_reference=safe["m_reference"],
+    #     clinical_pdd_zref=safe["clinical_pdd_zref"],
+    #     chamber=safe["chamber"],
+    #     institution=safe["institution"],
+    #     k_elec=safe["k_elec"],
+    #     measurement_date=safe["measurement_date"],
+    #     tissue_correction=safe["tissue_correction"],
+    #     unit=safe["unit"],
+    #     ref_temp=safe["ref_temp"]
+    # )
+
+    # trs398_calculator = TRS398Custom(
+    #     chamber=safe["chamber"],
+    #     clinical_pdd_zref=safe["clinical_pdd_zref"],
+    #     energy=safe["energy"],
+    #     fff=safe["fff"],
+    #     institution=safe["institution"],
+    #     k_elec=safe["k_elec"],
+    #     m_opposite=safe["m_opposite"],
+    #     m_reference=safe["m_reference"],
+    #     m_reduced=safe["m_reduced"],
+    #     measurement_date=safe["measurement_date"],
+    #     mu=safe["mu"],
+    #     n_dw=safe["n_dw"],
+    #     physicist=physicist,
+    #     press=press_kPa,
+    #     setup=safe["setup"],
+    #     temp=safe["temp"],
+    #     tissue_correction=safe["tissue_correction"],
+    #     tpr2010=safe["tpr2010"],
+    #     unit=safe["unit"],
+    #     voltage_reduced=safe["voltage_reduced"],
+    #     voltage_reference=safe["voltage_reference"],
+    #     ref_temp=safe["ref_temp"]
+    # )
+
+    buffer_tpr2010 = pylinac.calibration.tg51.tpr2010_from_pdd2010(pdd2010=safe["tpr2010"])
 
     trs398_calculator = pylinac.calibration.trs398.TRS398Photon(
         chamber=safe["chamber"],
@@ -807,6 +961,23 @@ def generate_calibration_report(
         open_file=False
         )
     click.echo(f"Output file {safe['output']} created.")
+
+    #Creating output file for further processing.
+    output_debug_filename = f"calibration-calculatedValues-{safe['energy']}MV.csv"
+    # output_debug_filename = f"{safe['output'].stem}_debug.csv"
+    with open(output_debug_filename, "w", encoding="utf-8", newline="") as f:
+        csvWriter_calibration = csv.writer(f, delimiter=";")
+        csvWriter_calibration.writerow(["Quantity", "Unit", "Value-calculated"])
+        csvWriter_calibration.writerow(["k_q", "", trs398_calculator.kq])
+        csvWriter_calibration.writerow(["K-s", "", trs398_calculator.k_s])
+        csvWriter_calibration.writerow(["K-pol", "", trs398_calculator.k_pol])
+        csvWriter_calibration.writerow(["k_tp", "", trs398_calculator.k_tp])
+        csvWriter_calibration.writerow(["D_ref", "Gy", trs398_calculator.dose_mu_zref])
+        csvWriter_calibration.writerow(["D_max", "Gy", trs398_calculator.dose_mu_zmax])
+
+
+    print(f"Debug output file {output_debug_filename} created.")
+
     sys.exit(0)
 
 # generate-graph command
