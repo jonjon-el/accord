@@ -1,8 +1,32 @@
-.venv/
-.vscode/
-tests/
-__pycache__/
-*.csv
-*.json
-*.pdf
-*.dcm
+# Python
+__pycache__/            # Ignore Python cache files
+*.py[cod]               # Compiled Python files
+*$py.class              # Jython compiled files
+*.so                    # Shared object files (C extensions)
+*.dylib                 # Dynamic libraries (macOS)
+*.dll                   # Dynamic-link libraries (Windows)
+.venv/                  # Virtual environment directory
+venv/                   # Alternative name for virtual environment directory
+env/                    # Alternative name for virtual environment directory
+build/                  # Build directory for distribution packages
+dist/                   # Distribution packages
+*.egg-info/             # Egg metadata
+.eggs/                  # Egg files
+
+# VS Code
+.vscode/*               # Ignore all files in .vscode
+!.vscode/launch.json    # Keep launch.json for debugging configurations
+!.vscode/tasks.json     # Keep tasks.json for build and test tasks
+*.code-workspace        # VS Code workspace files
+
+# Data files
+tests/                  # Ignore test files
+*.pdf                   # PDF files
+*.log                   # Log files
+*.dcm                   # DICOM files
+*.csv                   # CSV files
+*.json                  # JSON files
+
+# System files
+.DS_Store               # macOS Finder metadata
+Thumbs.db               # Windows thumbnail cache

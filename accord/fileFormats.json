@@ -1,0 +1,12 @@
+{
+    "output_preliminary": {
+        "columns": [
+            "k_TP",
+            "m_corrected"
+        ],
+        "units": [
+            "unit",
+            "nC"
+        ]
+    }
+}

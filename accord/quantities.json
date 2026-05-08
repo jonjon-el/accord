@@ -1,0 +1,22 @@
+{
+  "index": {
+    "description": "Index of the quantity",
+    "unit": null,
+    "baseType": "int"
+  },
+  "T": {
+    "description": "Temperature",
+    "unit": "K",
+    "baseType": "float"
+  },
+  "P": {
+    "description": "Pressure",
+    "unit": "Pa",
+    "baseType": "float"
+  },
+  "m": {
+    "description": "Electrometer reading",
+    "unit": "nC",
+    "baseType": "float"
+  }
+}

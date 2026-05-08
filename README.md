@@ -1,81 +1,89 @@
-# ACCORD
+# ACCORD 📂🤖
+> **A**utomated **C**alibration and **C**ontrol for **O**perational **R**adiotherapy **D**ata.
 
-Automated Calibration & Control for Operational Radiotherapy Data (Calibración y Control Automático para Datos de Radioterapia Operacional).
+(Calibración y Control Automático para Datos de Radioterapia Operacional)
 
-ACCORD es una plataforma avanzada de automatización diseñada para centralizar y optimizar el control de calidad en aceleradores lineales (LINACs). Basada en el ecosistema de Pylinac, ACCORD extiende sus capacidades integrando un motor de análisis de incertidumbres y sentando las bases para la futura adquisición automática de datos de sensores.
+🌎 *Read this in other languages: [Español](README.es.md)*
 
-## 🚀 Características principales
+ACCORD is an application designed to automate, centralize, and optimize Quality Control (QC) in Linear Accelerators (LINACs). Built upon the Pylinac ecosystem, ACCORD extends its capabilities by integrating an uncertainty analysis engine and, in the future, automated sensor data adquisition.
 
-### Implementadas:
+## 🚀 Key features
 
-* CLI de Pylinac.
-* Integración con Pylinac: Implementación de:
-* Protocolo TRS 398 según el módulo pylinac.calibration.trs398
-* Análisis preliminar a la calibración de la incertidumbre por:
-    + Repetibilidad de lecturas
-    + Temperatura
-    + Presión
-* Automatización de flujo: Reducción del error humano mediante el procesamiento sistemático de datos operativos.
+### Currently implemented:
 
-### En proceso:
+* **Pylinac CLI:** A robust command-line interface for rapid workflows.
+* **Pylinac Integration:** Core implementation of:
+    * **TRS-398 Protocol:** Based on the `pylinac.calibration.trs398` module.
+* **Pre-calibration Uncertainty Analysis:** Including:
+    * Reading repeatability.
+    * Temperature corrections.
+    * Pressure variations.
+* **Workflow Automation:** Significant reduction of human error through systematic processing of operational data.
 
-* GUI basada en Kivy para Pylinac.
-* Protocolo TG 51 según el módulo pylinac.calibration.tg51.
-* Módulos de análisis. (Winston-Lutz, VMAT, Starshot, etc)
-* Análisis de incertidumbre completo.
-* Sensor Sync: Lectura directa y procesamiento en tiempo real de instrumentación externa.
+### In Progress / Roadmap:
+* **Kivy-based GUI:** A modern graphical user interface for Pylinac.
+* **TG-51 Protocol:** Implementation based on the `pylinac.calibration.tg51` module.
+* **Standard Analysis Modules:** (Winston-Lutz, VMAT, Starshot, etc.).
+* **Comprehensive Uncertainty Analysis:** Full-scale statistical budget for calibration.
+* **Sensor Sync:** Direct real-time data acquisition and processing from external instrumentation.
 
-## 🛠️ Configuración para desarrolladores
+## 🛠️ Developer Configuration
 
-Si usas VS Code, este proyecto incluye una configuración optimizada del debugger.
-Asegúrate de tener el archivo .vscode/launch.json configurado para que los scripts actúen sobre los archivos de datos que se irán localizando en la subcarpeta tests de la carpeta raíz del proyecto.
-De esta manera, se puede depurar el programa desde vscode. La opción clave para lograr esto es:
+If you use VS Code, this project includes an optimized debugger configuration.  
+Ensure your `.vscode/launch.json` file is configured so that scripts act upon the data files located in the `tests` subfolder of the project's root directory.  
+This allows for seamless debugging within VS Code. The key setting to achieve this is:
 
-```"cwd": "${workspaceFolder}"```
-
-## 🛠️ Instalación
-
-Este programa utiliza flit para instalarse como paquete.
-Se recomienda crear un entorno virtual de python para ejecutar los siguientes comandos (Se utilizó venv durante el desarrollo):
-```bash
-git clone https://github.com/jonjon-el/nel_calc
-cd nel_calc
-```
-A partir de aquí hay dos maneras de instalarlo
-
-1. (CLÁSICA) El programa se puede instalar como paquete local directamente con:
-```bash
-pip install .
+```json
+"cwd": "\${workspaceFolder}"
 ```
 
-2. (FLIT) También se puede utilizar flit para facilitar el desarrollo haciendo una instalación editable.
+## 🛠️ Installation
+
+This program uses **Flit** for package installation.  
+It is highly recommended to create a Python virtual environment (the project was developed using `venv`):
+
 ```bash
-# (OPCIONAL) Instalar flit para permitir una instalación editable
-pip install flit
-# (OPCIONAL) Entonces después se puede hacer la instalación editable como paquete
-flit install --symlink
+git clone https://github.com/jonjon-el/accord
+cd accord
 ```
 
-## 🚀 Uso
+There are two ways to install it:
 
-Cómo ejecutarlo:
-1. Abre VS Code.
-2. Configura el `launch.json` (como vimos antes).
-3. Presiona F5 para debugear.
+1. **Classic (Direct):** Install as a local package using pip:
+   ```bash
+   pip install .
+   ```
 
-## 📝 Notas del Debugger
-Originalmente este programa se desarrolló en una laptop con Windows 11, CPU i3 basado en Sandy Bridge, Memoria RAM de 6GB.
+2. **Flit (Editable):** Use Flit for an editable installation, which is ideal for development:
+   ```bash
+   # (OPTIONAL) Install flit to enable editable mode
+   pip install flit
+   # Perform an editable installation as a package
+   flit install --symlink
+   ```
 
-## ✒️ Mantenido por
-ACCORD Development Team:
-* https://github.com/jonjon-el
+## 🚀 Usage
 
-## 🤝 Contribuciones y Soporte
+How to run:
+1. Open the project in VS Code.
+2. Configure `launch.json` (as described above).
+3. Press **F5** to start debugging.
 
-Si quieres ayudar a mejorar **ACCORD** o tienes alguna duda técnica:
+## 📝 Debugger & Development Notes
+The program was originally developed on a Windows 11 laptop with an Intel i3 (Sandy Bridge) CPU and 6GB of RAM.
 
-*   **Reportar errores:** Si algo no funciona o los cálculos de incertidumbre dan resultados inesperados, abre un [Issue](https://github.com).
-*   **Sugerir mejoras:** ¿Tienes una idea para la automatización de sensores? Cuéntamelo en la sección de [Discusiones](https://github.com) o mediante un Issue.
-*   **Enviar código:** Si has corregido algo o añadido una función, ¡envía un **Pull Request**! Estaré encantado de revisarlo junto a **@jonjon-el**.
+## ✒️ Maintained by
+**ACCORD Development Team:**
+* [GitHub Profile](https://github.com/jonjon-el)
 
-Toda la comunicación técnica se centralizará a través de este repositorio para mantener la trazabilidad del proyecto.
+## 🤝 Contributing & Support
+
+If you want to help improve **ACCORD** or have technical questions:
+
+* **Report Bugs:** If something isn't working or uncertainty calculations yield unexpected results, please open an [Issue](https://github.com).
+* **Suggest Improvements:** Have an idea for sensor automation? Share it in the [Discussions](https://github.com) section or via an Issue.
+* **Submit Code:** If you’ve fixed a bug or added a feature, send a **Pull Request**! I’ll be happy to review it alongside **@jonjon-el**.
+
+## 📜 Historical Note
+
+**ACCORD** began its life as the script called **nel_calc**, a work for a thesis developed by **jonjon-el** to simplify specific clinical calibration workflows based on TRS 398, performed on a LINAC located on a Oncology Hospital. Over time, the idea of transform that original script into a comprehensive platform for calibration of LINACs arose from the need to integrate the full power of *Pylinac*, implement rigorous uncertainty analysis, and automate sensor data acquisition.
