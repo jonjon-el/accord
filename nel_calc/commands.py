@@ -6,6 +6,7 @@ import csv # for reading and writing preliminary data in csv format.
 import pathlib
 import importlib.resources
 import shutil # for copying sample files to user specified location.
+import click # for creating the CLI. # TODO: evaluate if using Typer instead of Click is better for this project.
 
 import pylinac.calibration.trs398
 import pylinac.calibration.tg51
@@ -13,7 +14,7 @@ import pylinac.core.image_generator.layers
 import pylinac
 print(f"Pylinac version: {pylinac.__version__}")
 
-import click # for creatng the CLI. # TODO: evaluate if using Typer instead of Click is better for this project.
+import click # for creating the CLI. # TODO: evaluate if using Typer instead of Click is better for this project.
 
 import nel_calc.nel_aux
 import nel_calc.customSim
