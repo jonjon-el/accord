@@ -34,7 +34,7 @@ Ensure your `.vscode/launch.json` file is configured so that scripts act upon th
 This allows for seamless debugging within VS Code. The key setting to achieve this is:
 
 ```json
-"cwd": "\${workspaceFolder}"
+"cwd": "\${workspaceFolder}/tests"
 ```
 
 ## 🛠️ Installation
