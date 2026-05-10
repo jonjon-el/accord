@@ -58,25 +58,29 @@ def cli():
 @click.command()
 @click.argument("path", type=click.Path(file_okay=True, dir_okay=True, path_type=pathlib.Path), required=True)
 @click.option("--file-class", type=click.Choice(["config", "calibration", "preliminary", "devices"]), required=True, help="Class of sample file to copy.")
-def copy_sample(path: pathlib.Path, file_class: str):
+def create_sample_file(path: pathlib.Path, file_class: str):
     """Copy a sample file."""
 
+    configTraversable_list = list()
     if file_class == "config":
-        configTraversable = importlib.resources.files("accord").joinpath("sampleFiles/config.toml")
+        configTraversable_list.append(importlib.resources.files("accord").joinpath("sampleFiles/config.toml"))
     elif file_class == "calibration":
-        configTraversable = importlib.resources.files("accord").joinpath("sampleFiles/calibration.toml")
+        configTraversable_list.append(importlib.resources.files("accord").joinpath("sampleFiles/calibration.toml"))
         # TODO: make file_class a list of paths to work with the three preliminary.csv original files.
     elif file_class == "preliminary":
-        configTraversable = importlib.resources.files("accord").joinpath("sampleFiles/preliminary_0.csv")
+        configTraversable_list.append(importlib.resources.files("accord").joinpath("sampleFiles/preliminary_0.csv"))
+        configTraversable_list.append(importlib.resources.files("accord").joinpath("sampleFiles/preliminary_1.csv"))
+        configTraversable_list.append(importlib.resources.files("accord").joinpath("sampleFiles/preliminary_2.csv"))
     elif file_class == "devices":
-        configTraversable = importlib.resources.files("accord").joinpath("sampleFiles/devices.toml")
+        configTraversable_list.append(importlib.resources.files("accord").joinpath("sampleFiles/devices.toml"))
     else:
         raise click.BadParameter("Invalid file type. Please choose 'config', 'calibration', 'preliminary', or 'devices'.")
 
     try:
-        with importlib.resources.as_file(configTraversable) as configPath:
-            shutil.copy(configPath, path)
-            click.echo(f"File copied.")
+        for configTraversable in configTraversable_list:
+            with importlib.resources.as_file(configTraversable) as configPath:
+                shutil.copy(configPath, path)
+                click.echo(f"File copied.")
     except FileNotFoundError:
         raise click.ClickException(f"Sample file not found in {configPath}.")
     except PermissionError:
@@ -818,7 +822,7 @@ def generate_calibration_report(
 
     sys.exit(0)
 
-cli.add_command(copy_sample)
+cli.add_command(create_sample_file)
 cli.add_command(create_image_planar)
 cli.add_command(analyze_preliminary)
 cli.add_command(analyze_image_planar)
