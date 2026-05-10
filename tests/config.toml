@@ -1,0 +1,33 @@
+[create-image-planar]
+field-size-mm = [100.0, 100.0]
+sigma-mm = 2.0
+gantry-angle = 0.0
+epid = "iViewGT"
+
+[analyze-preliminary]
+input-dir = "."
+output-dir = "."
+input-preffix = "preliminary"
+output-preffix = "output"
+filetype = "csv"
+summary = "summary.json"
+max-PTP = 1.2
+ref-temp = 20.0
+devices = "devices.toml"
+k = 2.0
+
+[analyze-image-planar]
+protocol = "elekta"
+output = "image-report.pdf"
+
+[generate-calibration-report]
+output = "calibration-report.pdf"
+ref-temp = 20.0
+
+# [generate-graph]
+# output = "graph_output.png"
+# figsize = { x = 10, y = 6 }
+# marker = "."
+# linestyle = "-"
+# title = "Titulo"
+# grid = true
