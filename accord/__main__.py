@@ -1,7 +1,7 @@
-import accord.commands
+import accord.interfaces.cli_click.commands
 
 def main():
     """
     CLI entry point.
     """
-    accord.commands.cli()
+    accord.interfaces.cli_click.commands.cli()

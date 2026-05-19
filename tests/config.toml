@@ -5,16 +5,18 @@ gantry-angle = 0.0
 epid = "iViewGT"
 
 [analyze-preliminary]
-input-dir = "."
-output-dir = "."
-input-preffix = "preliminary"
-output-preffix = "output"
+eje = 5
+input_dir = "."
+output_dir = "."
+input_preffix = "preliminary"
+output_preffix = "output"
 filetype = "csv"
 summary = "summary.json"
-max-PTP = 1.2
-ref-temp = 20.0
+max_ptp = 1.2
+ref_temp = 20.0
 devices = "devices.toml"
-k = 2.0
+k = 2
+
 
 [analyze-image-planar]
 protocol = "elekta"

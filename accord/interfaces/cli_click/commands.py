@@ -6,6 +6,7 @@ print(f"Pylinac version: {pylinac.__version__}")
 
 import click # for creating the CLI. # TODO: evaluate if using Typer instead of Click is better for this project.
 import numpy as np # used for calculating statistical quantities and uncertainties. # TODO: migrate from using csv to pandas and numpy
+import pydantic # for validating the parameters of the commands.
 
 import sys
 import json # output files and summary file are in json format
@@ -13,43 +14,42 @@ import tomllib # for reading config files and devices specifications files in to
 import csv # for reading and writing preliminary data in csv format.
 import pathlib
 import importlib.resources
-import shutil # for copying sample files to user specified location.
 
-import accord.nel_aux
-import accord.customSim
-import accord.metrology
-import accord.corrections
+import accord.core.nel_aux
+import accord.core.customSim
+import accord.core.metrology
+import accord.core.corrections
+import accord.models.params
 
-def validate_config_path_exclusive_option(ctx, param, value):
-    """Validate that config_path is not used with other options."""
-    click.echo(f"Context: {ctx}")
-    click.echo(f"Parameter: {param}")
-    click.echo(f"Value: {value}")
-    click.echo(f'Params: {ctx.params if ctx else "No context"}')
 
-    if value:
-        for other_param in ctx.params:
-            if other_param == "config_path":
-                raise click.UsageError(f"Options '{param.name}' and '{other_param}' cannot be used together.")
-
-    return value
-
-def validate_mutually_exclusive_options(ctx, param, value):
-    """Validate that only one of the options is used."""
-    click.echo(f"Context: {ctx}")
-    click.echo(f"Parameter: {param}")
-    click.echo(f"Value: {value}")
-    click.echo(f'Params: {ctx.params if ctx else "No context"}')
+def load_toml_config(ctx, param, value):
+    """Load a TOML config file and return it as a dictionary."""
+    if value is None:
+        return None
     
-    if value:
-        for other_param in ctx.params:
-            if other_param != param.name and ctx.params[other_param]:
-                raise click.UsageError(f"Options '{param.name}' and '{other_param}' cannot be used together.")
-            
+    # This make this callback perform complex and custom tasks in case not finding a valid config file.
+    # Also make this callback works even without the related click decorator parameters.
+    # In this case the logic is simple.
+    path = pathlib.Path(value)
+    if not path.exists():
+        raise click.BadParameter(f"Config file {value} does not exist.")
+    if not path.is_file():
+        raise click.BadParameter(f"Config file {value} is not a file.")
+    
+    try:
+        with open(path, "rb") as configFile:
+            ctx.default_map = tomllib.load(configFile)
+    except tomllib.TOMLDecodeError as e:
+        raise click.BadParameter(f"Error at line {e.lineno}, col {e.colno} in config file {value}: {e.msg}")
+    except Exception as e:
+        raise click.ClickException(f"Unexpected error occurred while loading config file {value}: {e}")
+
     return value
+
 
 @click.group()
 @click.version_option("0.2.0", prog_name="accord")
+@click.option("--config", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), callback=load_toml_config, is_eager=True, expose_value=False, help="Path to config file.")
 def cli():
     """Main command line interface for the program."""
     pass
@@ -61,35 +61,8 @@ def cli():
 def create_sample_file(path: pathlib.Path, file_class: str):
     """Copy a sample file."""
 
-    configTraversable_list = list()
-    if file_class == "config":
-        configTraversable_list.append(importlib.resources.files("accord").joinpath("sampleFiles/config.toml"))
-    elif file_class == "calibration":
-        configTraversable_list.append(importlib.resources.files("accord").joinpath("sampleFiles/calibration.toml"))
-        # TODO: make file_class a list of paths to work with the three preliminary.csv original files.
-    elif file_class == "preliminary":
-        configTraversable_list.append(importlib.resources.files("accord").joinpath("sampleFiles/preliminary_0.csv"))
-        configTraversable_list.append(importlib.resources.files("accord").joinpath("sampleFiles/preliminary_1.csv"))
-        configTraversable_list.append(importlib.resources.files("accord").joinpath("sampleFiles/preliminary_2.csv"))
-    elif file_class == "devices":
-        configTraversable_list.append(importlib.resources.files("accord").joinpath("sampleFiles/devices.toml"))
-    else:
-        raise click.BadParameter("Invalid file type. Please choose 'config', 'calibration', 'preliminary', or 'devices'.")
+    accord.core.nel_aux.copy_sample_files(path, file_class)
 
-    try:
-        for configTraversable in configTraversable_list:
-            with importlib.resources.as_file(configTraversable) as configPath:
-                shutil.copy(configPath, path)
-                click.echo(f"File copied.")
-    except FileNotFoundError:
-        raise click.ClickException(f"Sample file not found in {configPath}.")
-    except PermissionError:
-        raise click.ClickException(f"Permission denied when copying file.")
-    except shutil.SameFileError:
-        raise click.ClickException(f"Source and destination represents the same file.")
-    except OSError as e:
-        raise click.ClickException(f"Error copying file: {e.strerror}.")
-    
     sys.exit(0)
 
 #command to create image for 2D profiling.
@@ -109,12 +82,12 @@ def create_image_planar(
     epid: str):
     """Create planar image for 2D profiling."""
 
-    cfg = accord.nel_aux.load_toml_file(config) if config else {}
+    cfg = accord.core.nel_aux.load_toml_file(config) if config else {}
 
-    field_size_mm = accord.nel_aux.resolve_option2(field_size_mm, cfg, "create-image-planar.field-size-mm")
-    sigma_mm = accord.nel_aux.resolve_option2(sigma_mm, cfg, "create-image-planar.sigma-mm")
-    gantry_angle = accord.nel_aux.resolve_option2(gantry_angle, cfg, "create-image-planar.gantry-angle")
-    epid = accord.nel_aux.resolve_option2(epid, cfg, "create-image-planar.epid")
+    field_size_mm = accord.core.nel_aux.resolve_option2(field_size_mm, cfg, "create-image-planar.field-size-mm")
+    sigma_mm = accord.core.nel_aux.resolve_option2(sigma_mm, cfg, "create-image-planar.sigma-mm")
+    gantry_angle = accord.core.nel_aux.resolve_option2(gantry_angle, cfg, "create-image-planar.gantry-angle")
+    epid = accord.core.nel_aux.resolve_option2(epid, cfg, "create-image-planar.epid")
 
     # Check types
     safe = dict()    
@@ -143,7 +116,7 @@ def create_image_planar(
 
     #Load the appropiated epid class.
     if safe["epid"] == "iViewGT":
-        iViewGT0 = accord.customSim.iViewGTImage()
+        iViewGT0 = accord.core.customSim.iViewGTImage()
     else:
         raise click.exceptions.BadParameter(f"Unknown EPID name for class instance: {safe["epid"]}.")
     
@@ -158,7 +131,7 @@ def create_image_planar(
 
 #analyze-preliminary command.
 @click.command()
-@click.option("--config", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), help="Path to config file.")
+# @click.option("--config", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), callback=load_toml_config, is_eager=True, expose_value=False, help="Path to config file.")
 @click.option("--summary", type=click.Path(file_okay=True, dir_okay=False, path_type=pathlib.Path), help="Path to summary file.")
 @click.option("--devices", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), help="File with specifications of devices used in the measure.")
 @click.option("--input-dir", type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path), help="Path of input file directory.")
@@ -166,107 +139,45 @@ def create_image_planar(
 @click.option("--input-preffix", type=click.STRING, help="Input fileName preffix.")
 @click.option("--output-preffix", type=click.STRING, help="Output fileName preffix.")
 @click.option("--filetype", type=click.STRING, help="FileType of the input and output files.")
-@click.option("--max-PTP", type=click.FLOAT, help="Maximum limit for PTP.")
+@click.option("--max-ptp", type=click.FLOAT, help="Maximum limit for PTP.")
 @click.option("--ref-temp", type=click.FLOAT, help="Reference temperature for k_TP calculation.")
-@click.option("--k", type=click.FLOAT, help="Coverage factor for calculating expanded uncertainty using normal distribution.")
-def analyze_preliminary(config: pathlib.Path,
-                        summary: pathlib.Path,
-                        devices: pathlib.Path,
-                        input_dir: pathlib.Path,
-                        output_dir: pathlib.Path,
-                        input_preffix: str,
-                        output_preffix: str,
-                        filetype: str,
-                        max_ptp: float,
-                        ref_temp: float,
-                        k: float):
+@click.option("--k", type=click.INT, help="Coverage factor for calculating expanded uncertainty using normal distribution.")
+def analyze_preliminary(**kwargs):
     """Analyze calibration preliminary data about measurements."""
 
-    cfg = accord.nel_aux.load_toml_file(config) if config else {}
-    input_dir = accord.nel_aux.resolve_option2(input_dir, cfg, "analyze-preliminary.input-dir")
-    output_dir = accord.nel_aux.resolve_option2(output_dir, cfg, "analyze-preliminary.output-dir")
-    input_preffix = accord.nel_aux.resolve_option2(input_preffix, cfg, "analyze-preliminary.input-preffix")
-    output_preffix = accord.nel_aux.resolve_option2(output_preffix, cfg, "analyze-preliminary.output-preffix")
-    filetype = accord.nel_aux.resolve_option2(filetype, cfg, "analyze-preliminary.filetype")
-    summary = accord.nel_aux.resolve_option2(summary, cfg, "analyze-preliminary.summary")
-    max_ptp = accord.nel_aux.resolve_option2(max_ptp, cfg, "analyze-preliminary.max-PTP")
-    ref_temp = accord.nel_aux.resolve_option2(ref_temp, cfg, "analyze-preliminary.ref-temp")
-    devices = accord.nel_aux.resolve_option2(devices, cfg, "analyze-preliminary.devices")
-    k = accord.nel_aux.resolve_option2(k, cfg, "analyze-preliminary.k")
-    
-    # Check types
-    safe = dict()
-    if isinstance(input_dir, str):
-        safe["input_dir"] = pathlib.Path(input_dir)
-    elif isinstance(input_dir, pathlib.Path):
-        safe["input_dir"] = input_dir
-    else:
-        raise click.BadParameter("input-dir must be a pathlib.Path.")
-    
-    if isinstance(output_dir, str):
-        safe["output_dir"] = pathlib.Path(output_dir)
-    elif isinstance(output_dir, pathlib.Path):
-        safe["output_dir"] = output_dir
-    else:
-        raise click.BadParameter("output-dir must be a pathlib.Path.")
-    
-    if isinstance(input_preffix, str):
-        safe["input_preffix"] = input_preffix
-    else:
-        raise click.BadParameter("input-preffix must be a string.")
-    
-    if isinstance(output_preffix, str):
-        safe["output_preffix"] = output_preffix
-    else:
-        raise click.BadParameter("output-preffix must be a string.")
-    
-    if isinstance(filetype, str):
-        safe["filetype"] = filetype
-    else:
-        raise click.BadParameter("filetype must be a string.")
-    
-    if isinstance(summary, str):
-        safe["summary"] = pathlib.Path(summary)
-    elif isinstance(summary, pathlib.Path):
-        safe["summary"] = summary
-    else:
-        raise click.BadParameter("summary must be a pathlib.Path or a string.")
-    
-    if isinstance(max_ptp, float):
-        safe["max_ptp"] = max_ptp
-    else:
-        raise click.BadParameter("max-PTP must be a float.")
+    # Filter not given values (None).
+    unsafe_params = {k: v for k, v in kwargs.items() if v is not None}
 
-    if isinstance(ref_temp, float):
-        safe["ref_temp"] = ref_temp
-    else:
-        raise click.BadParameter("ref-temp must be a float.")
-
-    if isinstance(devices, str):
-        safe["devices"] = pathlib.Path(devices)
-    elif isinstance(devices, pathlib.Path):
-        safe["devices"] = devices
-    else:
-        raise click.BadParameter("devices must be a pathlib.Path or a string.")
-
-    if isinstance(k, float):
-        safe["k"] = k
-    else:
-        raise click.BadParameter("k must be a float.")
+    # Check with Pydantic that the options have the correct types and values.
+    try:
+        safe_params = accord.models.params.PreliminaryAnalysisParams.model_validate(unsafe_params)
+        
+    except pydantic.ValidationError as e:
+        # Extracting only the first error to not overwhelm the user with a long list of errors.
+        # The error message is more user-friendly than the default Pydantic error message.
+        error_info = e.errors()[0]
+        field = ".".join(str(loc) for loc in error_info['loc'])
+        message = error_info['msg']
+        
+        # Click exception
+        raise click.ClickException(
+            f"Error in configuration ('{field}'): {message}"
+        )
+    
 
     ## from data files to tables of values with the appropiate base types.
 
     # Getting the input filenames.
     filepaths = list()
-    for file in pathlib.Path(input_dir).iterdir():
+    for file in pathlib.Path(safe_params.input_dir).iterdir():
         if file.is_file():
-            if file.name.startswith(input_preffix) and file.suffix == f".{filetype}":
+            if file.name.startswith(safe_params.input_preffix) and file.suffix == f".{safe_params.filetype}":
                 filepaths.append(str(file.resolve()))
     if len(filepaths) == 0:
         raise FileNotFoundError("Cannot find input files.")
 
     # Loading quantities data.
-    quantities_traversable = importlib.resources.files("accord").joinpath("quantities.json")
+    quantities_traversable = importlib.resources.files("accord").joinpath("formats/quantities.json")
     try:
         with quantities_traversable.open("r", encoding="utf-8") as quantitiesFile:
             quantitiesData = json.load(quantitiesFile)
@@ -284,7 +195,7 @@ def analyze_preliminary(config: pathlib.Path,
             input_preliminary_units = next(csvDictReader) # Getting the units in second line. Try deleting for specify in config file.
             rawMeasurement_list = list()
             for row in csvDictReader: # Getting the values
-                rawMeasurement = accord.nel_aux.Row2Measurement2(row=row, quantities=quantitiesData)
+                rawMeasurement = accord.core.nel_aux.Row2Measurement2(row=row, quantities=quantitiesData)
                 rawMeasurement_list.append(rawMeasurement.copy())
         rawMeasurement_list_tries.append(rawMeasurement_list.copy())
 
@@ -292,7 +203,7 @@ def analyze_preliminary(config: pathlib.Path,
 
     # Changing bounds of k_tp to avoid BoundError
     # Value are the just as closest posible to default values
-    pylinac.calibration.trs398.MAX_PTP = max_ptp
+    pylinac.calibration.trs398.MAX_PTP = safe_params.max_ptp
 
     # Convert the units and calculate the corrected charge and the temperature-pressure correction factor
     measurement_list_tries = list()
@@ -300,8 +211,8 @@ def analyze_preliminary(config: pathlib.Path,
     for rawMeasurement_list in rawMeasurement_list_tries:
         measurement_list = list()
         for rawMeasurement in rawMeasurement_list:
-            measurement = accord.nel_aux.Convert_measurement_to_pylinac_units(measurement=rawMeasurement, oldUnits=input_preliminary_units)
-            measurement["k_TP"] = pylinac.calibration.trs398.k_tp(temp = measurement["T"], press = measurement["P"], ref_temp=ref_temp) # Calculation of k_TP with the reference temperature specified by the user.
+            measurement = accord.core.nel_aux.Convert_measurement_to_pylinac_units(measurement=rawMeasurement, oldUnits=input_preliminary_units)
+            measurement["k_TP"] = pylinac.calibration.trs398.k_tp(temp = measurement["T"], press = measurement["P"], ref_temp=safe_params.ref_temp) # Calculation of k_TP with the reference temperature specified by the user.
             measurement["m_corrected"] = pylinac.calibration.trs398.m_corrected(m_reference=measurement["m"],
                                                             k_tp=measurement["k_TP"],
                                                             k_elec=1,
@@ -321,22 +232,22 @@ def analyze_preliminary(config: pathlib.Path,
         m_corrected_list = [measurement["m_corrected"] for measurement in measurement_list]
 
         # Calculate the average of m_corrected
-        m_corrected_average_item = accord.nel_aux.FindAverage(m_corrected_list)
+        m_corrected_average_item = accord.core.nel_aux.FindAverage(m_corrected_list)
         m_corrected_averageList.append(m_corrected_average_item)
 
         # Calculate the standard deviation of m_corrected
-        m_corrected_stdDev_item = accord.nel_aux.FindStdDev(m_corrected_list)
+        m_corrected_stdDev_item = accord.core.nel_aux.FindStdDev(m_corrected_list)
         m_corrected_stdDevList.append(m_corrected_stdDev_item)
 
         # Calculate the expected value of m_corrected
-        m_corrected_expectedValue_item = accord.nel_aux.FindExpectedValue(m_corrected_list)
+        m_corrected_expectedValue_item = accord.core.nel_aux.FindExpectedValue(m_corrected_list)
         m_corrected_expectedValueList.append(m_corrected_expectedValue_item)
     
     ## Calculating uncertainties.
 
     # Device specifications.
     try:
-        with open(safe["devices"], "rb") as devicesFile:
+        with open(safe_params.devices, "rb") as devicesFile:
             devicesData = tomllib.load(devicesFile)
             # Example of how to access the data:
             termometer_resolution = devicesData["termometer"]["resolution"]
@@ -355,28 +266,28 @@ def analyze_preliminary(config: pathlib.Path,
     m_corrected_average_123 = np.mean(m_corrected_averageList) # Average of the averages of m_corrected for each try. This is the same as the average of all m_corrected values.
 
     # Calculating standard uncertainties.
-    u_L = accord.metrology.calc_u_A(*m_corrected_averageList)
-    u_T_resolution = accord.metrology.calc_u_B(error_value=termometer_resolution, distribution=termometer_distribution, k=termometer_k)
-    u_T_accuracy = accord.metrology.calc_u_B(error_value=termometer_accuracy, distribution=termometer_distribution, k=termometer_k)
-    u_T = accord.metrology.calc_u_c(u_T_resolution, u_T_accuracy)
-    u_P_resolution = accord.metrology.calc_u_B(error_value=barometer_resolution, distribution=barometer_distribution, k=barometer_k)
-    u_P_accuracy = accord.metrology.calc_u_B(error_value=barometer_accuracy, distribution=barometer_distribution, k=barometer_k)
-    u_P = accord.metrology.calc_u_c(u_P_resolution, u_P_accuracy)
+    u_L = accord.core.metrology.calc_u_A(*m_corrected_averageList)
+    u_T_resolution = accord.core.metrology.calc_u_B(error_value=termometer_resolution, distribution=termometer_distribution, k=termometer_k)
+    u_T_accuracy = accord.core.metrology.calc_u_B(error_value=termometer_accuracy, distribution=termometer_distribution, k=termometer_k)
+    u_T = accord.core.metrology.calc_u_c(u_T_resolution, u_T_accuracy)
+    u_P_resolution = accord.core.metrology.calc_u_B(error_value=barometer_resolution, distribution=barometer_distribution, k=barometer_k)
+    u_P_accuracy = accord.core.metrology.calc_u_B(error_value=barometer_accuracy, distribution=barometer_distribution, k=barometer_k)
+    u_P = accord.core.metrology.calc_u_c(u_P_resolution, u_P_accuracy)
 
     # Calculating sensitivity coefficients.
-    c_L = accord.corrections.calc_c_L(T_expected_value=20, P_expected_value=101.325, T_ref=20, P_ref=101.325)
-    c_T = accord.corrections.calc_c_T(P_expected_value=101.325, T_ref=20, P_ref=101.325)
-    c_P = accord.corrections.calc_c_P(L_expected_value=1, T_expected_value=20, P_expected_value=101.325, T_ref=20, P_ref=101.325)
+    c_L = accord.core.corrections.calc_c_L(T_expected_value=20, P_expected_value=101.325, T_ref=20, P_ref=101.325)
+    c_T = accord.core.corrections.calc_c_T(P_expected_value=101.325, T_ref=20, P_ref=101.325)
+    c_P = accord.core.corrections.calc_c_P(L_expected_value=1, T_expected_value=20, P_expected_value=101.325, T_ref=20, P_ref=101.325)
 
     # Calculating combined standard uncertainty.
-    u_c = accord.metrology.calc_u_c(c_L*u_L, c_T*u_T, c_P*u_P)
+    u_c = accord.core.metrology.calc_u_c(c_L*u_L, c_T*u_T, c_P*u_P)
     
     # Coverage factor for a confidence level of approximately 95% for a normal distribution.
     # TODO: Calculate the effective degrees of freedom and the corresponding coverage factor with the Welch-Satterthwaite formula or specify in command line.
     # k = 2
     
     # Calculating expanded uncertainty.
-    U = accord.metrology.calc_U(u_c, safe["k"])
+    U = accord.core.metrology.calc_U(u_c, safe_params.k)
 
     print(f"Mean of corrected values (Series 1, 2, 3): {m_corrected_average_123: .3f}")
     
@@ -406,7 +317,7 @@ def analyze_preliminary(config: pathlib.Path,
     # The order of the columns on input files are specified in a row of the input file itself.
     # The order of the columns on output files are specified in the file formats file.
     
-    fileFormats_traversable = importlib.resources.files("accord").joinpath("fileFormats.json")
+    fileFormats_traversable = importlib.resources.files("accord").joinpath("formats/fileFormats.json")
     
     try:
         with fileFormats_traversable.open("r", encoding="utf-8") as fileFormatsFile:
@@ -437,8 +348,8 @@ def analyze_preliminary(config: pathlib.Path,
         dirs = pathlib.Path(filePath).parent
         stem = pathlib.Path(filePath).stem
         suffix = pathlib.Path(filePath).suffix
-        output_filename = f"{output_preffix}{i}{suffix}"
-        output_filePath = pathlib.Path(output_dir) / output_filename
+        output_filename = f"{safe_params.output_preffix}{i}{suffix}"
+        output_filePath = pathlib.Path(safe_params.output_dir) / output_filename
         
         with open(output_filePath, "w", encoding="utf-8", newline='') as csvFile:
             csvWriter = csv.DictWriter(csvFile, fieldnames=output_preliminary_quantities_complete)
@@ -464,13 +375,13 @@ def analyze_preliminary(config: pathlib.Path,
     output_quantities["c_T*u_T"] = c_T * u_T
     output_quantities["c_P*u_P"] = c_P * u_P
     output_quantities["u_c"] = u_c
-    output_quantities["k"] = k
+    output_quantities["k"] = safe_params.k
     output_quantities["U"] = U
 
-    summaryPath = safe["summary"] # TODO: Check if summary should really be inside output_dir
+    summaryPath = safe_params.summary # TODO: Check if summary should really be inside output_dir
     with open(summaryPath, "w", encoding="utf-8") as summaryFile:
         json.dump(output_quantities, summaryFile, indent=4)
-        print(f"Output file {safe['summary']} created.")
+        print(f"Output file {safe_params.summary} created.")
 
     click.echo("Preliminary analysis done.")
     sys.exit(0)
@@ -489,10 +400,10 @@ def analyze_image_planar(
     ):
     """Analyze field images."""
 
-    cfg = accord.nel_aux.load_toml_file(config) if config else {}
+    cfg = accord.core.nel_aux.load_toml_file(config) if config else {}
 
-    protocol = accord.nel_aux.resolve_option2(protocol, cfg, "analyze-image-planar.protocol")
-    output = accord.nel_aux.resolve_option2(output, cfg, "analyze-image-planar.output")
+    protocol = accord.core.nel_aux.resolve_option2(protocol, cfg, "analyze-image-planar.protocol")
+    output = accord.core.nel_aux.resolve_option2(output, cfg, "analyze-image-planar.output")
 
     # Check types
     safe = dict()
@@ -599,36 +510,36 @@ def generate_calibration_report(
     """Generate report about calibration."""
 
     # Load config file
-    cfg = accord.nel_aux.load_toml_file(config) if config else {}
+    cfg = accord.core.nel_aux.load_toml_file(config) if config else {}
 
     # Load calibration file
-    calibrationFile = accord.nel_aux.load_toml_file(path)
+    calibrationFile = accord.core.nel_aux.load_toml_file(path)
 
     # Load values from files
-    output = accord.nel_aux.resolve_option2(output, cfg, "generate-calibration-report.output")
+    output = accord.core.nel_aux.resolve_option2(output, cfg, "generate-calibration-report.output")
 
-    chamber = accord.nel_aux.resolve_option2(chamber, calibrationFile, "chamber")
-    clinical_pdd_zref = accord.nel_aux.resolve_option2(clinical_pdd_zref, calibrationFile, "clinical-pdd-zref")
-    energy = accord.nel_aux.resolve_option2(energy, calibrationFile, "energy")
-    fff = accord.nel_aux.resolve_option2(fff, calibrationFile, "fff")
-    institution = accord.nel_aux.resolve_option2(institution, calibrationFile, "institution")
-    k_elec = accord.nel_aux.resolve_option2(k_elec, calibrationFile,  "k-elec")
-    m_opposite = accord.nel_aux.resolve_option2(m_opposite, calibrationFile, "m-opposite")
-    m_reference = accord.nel_aux.resolve_option2(m_reference, calibrationFile, "m-reference")
-    m_reduced = accord.nel_aux.resolve_option2(m_reduced, calibrationFile, "m-reduced")
-    measurement_date = accord.nel_aux.resolve_option2(measurement_date, calibrationFile, "measurement-date")
-    mu = accord.nel_aux.resolve_option2(mu, calibrationFile, "mu")
-    n_dw = accord.nel_aux.resolve_option2(n_dw, calibrationFile, "n-dw")
-    physicist = accord.nel_aux.resolve_option2(physicist, calibrationFile, "physicist")
-    press = accord.nel_aux.resolve_option2(press, calibrationFile, "press")
-    setup = accord.nel_aux.resolve_option2(setup, calibrationFile, "setup")
-    temp = accord.nel_aux.resolve_option2(temp, calibrationFile, "temp")
-    tissue_correction = accord.nel_aux.resolve_option2(tissue_correction, calibrationFile, "tissue-correction")
-    tpr2010 = accord.nel_aux.resolve_option2(tpr2010, calibrationFile, "tpr2010")
-    unit = accord.nel_aux.resolve_option2(unit, calibrationFile, "unit")
-    voltage_reduced = accord.nel_aux.resolve_option2(voltage_reduced, calibrationFile, "voltage-reduced")
-    voltage_reference = accord.nel_aux.resolve_option2(voltage_reference, calibrationFile, "voltage-reference")
-    notes = accord.nel_aux.resolve_option2(notes, calibrationFile, "notes")
+    chamber = accord.core.nel_aux.resolve_option2(chamber, calibrationFile, "chamber")
+    clinical_pdd_zref = accord.core.nel_aux.resolve_option2(clinical_pdd_zref, calibrationFile, "clinical-pdd-zref")
+    energy = accord.core.nel_aux.resolve_option2(energy, calibrationFile, "energy")
+    fff = accord.core.nel_aux.resolve_option2(fff, calibrationFile, "fff")
+    institution = accord.core.nel_aux.resolve_option2(institution, calibrationFile, "institution")
+    k_elec = accord.core.nel_aux.resolve_option2(k_elec, calibrationFile,  "k-elec")
+    m_opposite = accord.core.nel_aux.resolve_option2(m_opposite, calibrationFile, "m-opposite")
+    m_reference = accord.core.nel_aux.resolve_option2(m_reference, calibrationFile, "m-reference")
+    m_reduced = accord.core.nel_aux.resolve_option2(m_reduced, calibrationFile, "m-reduced")
+    measurement_date = accord.core.nel_aux.resolve_option2(measurement_date, calibrationFile, "measurement-date")
+    mu = accord.core.nel_aux.resolve_option2(mu, calibrationFile, "mu")
+    n_dw = accord.core.nel_aux.resolve_option2(n_dw, calibrationFile, "n-dw")
+    physicist = accord.core.nel_aux.resolve_option2(physicist, calibrationFile, "physicist")
+    press = accord.core.nel_aux.resolve_option2(press, calibrationFile, "press")
+    setup = accord.core.nel_aux.resolve_option2(setup, calibrationFile, "setup")
+    temp = accord.core.nel_aux.resolve_option2(temp, calibrationFile, "temp")
+    tissue_correction = accord.core.nel_aux.resolve_option2(tissue_correction, calibrationFile, "tissue-correction")
+    tpr2010 = accord.core.nel_aux.resolve_option2(tpr2010, calibrationFile, "tpr2010")
+    unit = accord.core.nel_aux.resolve_option2(unit, calibrationFile, "unit")
+    voltage_reduced = accord.core.nel_aux.resolve_option2(voltage_reduced, calibrationFile, "voltage-reduced")
+    voltage_reference = accord.core.nel_aux.resolve_option2(voltage_reference, calibrationFile, "voltage-reference")
+    notes = accord.core.nel_aux.resolve_option2(notes, calibrationFile, "notes")
 
     # Check types
     safe = dict()
