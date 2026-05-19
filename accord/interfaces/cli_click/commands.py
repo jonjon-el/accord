@@ -167,6 +167,20 @@ def analyze_preliminary(**kwargs):
 
     ## from data files to tables of values with the appropiate base types.
 
+    # Loading file formats.
+    # The order of the columns on input files are specified in a row of the input file itself.
+    # The order of the columns on output files are specified in the file formats file.
+    
+    fileFormats_traversable = importlib.resources.files("accord").joinpath("formats/fileFormats.json")
+    
+    try:
+        with fileFormats_traversable.open("r", encoding="utf-8") as fileFormatsFile:
+            fileFormatsData = json.load(fileFormatsFile)
+    except FileNotFoundError:
+        raise click.ClickException(f"File formats file not found in {fileFormats_traversable}.")
+    except json.JSONDecodeError:
+        raise click.ClickException(f"Invalid JSON in file formats file {fileFormats_traversable}.")
+
     # Getting the input filenames.
     filepaths = list()
     for file in pathlib.Path(safe_params.input_dir).iterdir():
@@ -187,10 +201,12 @@ def analyze_preliminary(**kwargs):
         raise click.ClickException(f"Invalid JSON in quantities file {quantities_traversable}.")
 
     # Read the files and convert them to rawMeasurement_list_tries
+    input_preliminary_column_separator = fileFormatsData["input_preliminary"]["column_delimiter"]
+
     rawMeasurement_list_tries = list()
     for filepath in filepaths:    
         with open(filepath, "r", encoding = "utf-8") as csvFile:
-            csvDictReader = csv.DictReader(csvFile)
+            csvDictReader = csv.DictReader(csvFile, delimiter=input_preliminary_column_separator)
             input_preliminary_quantities = csvDictReader.fieldnames # Getting the current header in first line
             input_preliminary_units = next(csvDictReader) # Getting the units in second line. Try deleting for specify in config file.
             rawMeasurement_list = list()
@@ -327,19 +343,22 @@ def analyze_preliminary(**kwargs):
     except json.JSONDecodeError:
         raise click.ClickException(f"Invalid JSON in file formats file {fileFormats_traversable}.")
     
-    output_preliminary_quantities = fileFormatsData["output_preliminary"]["columns"]
-    output_preliminary_units = fileFormatsData["output_preliminary"]["units"]
+    output_preliminary_quantities = [column for column in fileFormatsData["output_preliminary"]["columns"].keys()]
+    # output_preliminary_units = [columns["unit"] for columns in fileFormatsData["output_preliminary"]["columns"].values()]
+    output_preliminary_units = {column_id: column["unit"] for column_id, column in fileFormatsData["output_preliminary"]["columns"].items()}
 
     # The quantities of the output files are the same as the input files plus the new quantities calculated in this command. The order of the columns in the output files are specified here.
     # Csvwriter writes the columns in the order specified in fieldnames.
     # fieldnames is a list.
-    output_preliminary_quantities_complete = input_preliminary_quantities + output_preliminary_quantities
+    # output_preliminary_quantities_complete = output_preliminary_quantities
 
     # The units of the output files are written in the second line of the output files.
     # They are not list, but dict, because they are written as a row of CsvWriter to the csv file, so the keys are the column names and the values are the units.
-    output_preliminary_units_dict = dict(zip(output_preliminary_quantities, output_preliminary_units))
+    # output_preliminary_units_dict = dict(zip(output_preliminary_quantities, output_preliminary_units))
     # The units of the output files are the same as the input files plus the new units specified here. The order of the columns in the output files are specified here.
-    output_preliminary_units_complete = input_preliminary_units | output_preliminary_units_dict
+    # output_preliminary_units_complete = output_preliminary_units
+
+    output_preliminary_column_separator = fileFormatsData["output_preliminary"]["column_delimiter"]
 
     # Writing output files.
     i = 0
@@ -352,9 +371,9 @@ def analyze_preliminary(**kwargs):
         output_filePath = pathlib.Path(safe_params.output_dir) / output_filename
         
         with open(output_filePath, "w", encoding="utf-8", newline='') as csvFile:
-            csvWriter = csv.DictWriter(csvFile, fieldnames=output_preliminary_quantities_complete)
+            csvWriter = csv.DictWriter(csvFile, fieldnames=output_preliminary_quantities, delimiter=output_preliminary_column_separator)
             csvWriter.writeheader()
-            csvWriter.writerow(output_preliminary_units_complete)
+            csvWriter.writerow(output_preliminary_units)
             measurement_list = measurement_list_tries[i]
             for measurement in measurement_list:
                 csvWriter.writerow(measurement)

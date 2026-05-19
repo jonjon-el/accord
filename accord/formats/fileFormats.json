@@ -1,12 +1,67 @@
 {
+    "input_preliminary": {
+        "type:": "csv",
+        "description": "Preliminary input file with raw readings of the electrometer and the temperature and pressure values.",
+        "column_delimiter": ";",
+        "columns": {
+            "index": {
+                "name": "Index",
+                "unit": "",
+                "description": "Index"
+            },
+            "T": {
+                "name": "T",
+                "unit": "°C",
+                "description": "Temperature"
+            },
+            "P": {
+                "name": "P",
+                "unit": "kPa",
+                "description": "Pressure"
+            },
+            "m": {
+                "name": "m",
+                "unit": "nC",
+                "description": "Raw reading of the electrometer"
+            }
+        }
+    }
+    ,
     "output_preliminary": {
-        "columns": [
-            "k_TP",
-            "m_corrected"
-        ],
-        "units": [
-            "unit",
-            "nC"
-        ]
+        "type:": "csv",
+        "description": "Preliminary output file with corrected readings of the electrometer and the correction factor for temperature and pressure.",
+        "column_delimiter": ";",
+        "columns": {
+            "index": {
+                "name": "Index",
+                "unit": "",
+                "description": "Index"
+            },
+            "T": {
+                "name": "T",
+                "unit": "°C",
+                "description": "Temperature"
+            },
+            "P": {
+                "name": "P",
+                "unit": "kPa",
+                "description": "Pressure"
+            },
+            "m": {
+                "name": "m",
+                "unit": "nC",
+                "description": "Raw reading of the electrometer"
+            },
+            "k_TP": {
+                "name": "k_TP",
+                "unit": "",
+                "description": "Correction factor for temperature and pressure"
+            },
+            "m_corrected": {
+                "name": "m_corrected",
+                "unit": "nC",
+                "description": "Corrected reading of electrometer"
+            }
+        }
     }
 }
