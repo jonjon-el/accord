@@ -22,8 +22,8 @@ import accord.core.corrections
 import accord.models.params
 
 
-def load_toml_config(ctx, param, value):
-    """Load a TOML config file and return it as a dictionary."""
+""" def load_toml_config(ctx, param, value):
+    "Load a TOML config file and return it as a dictionary."
     if value is None:
         return None
     
@@ -39,20 +39,147 @@ def load_toml_config(ctx, param, value):
     try:
         with open(path, "rb") as configFile:
             ctx.default_map = tomllib.load(configFile)
+            print("DEBUG:", ctx.default_map) # Debug print to check the loaded config file.
     except tomllib.TOMLDecodeError as e:
         raise click.BadParameter(f"Error at line {e.lineno}, col {e.colno} in config file {value}: {e.msg}")
     except Exception as e:
         raise click.ClickException(f"Unexpected error occurred while loading config file {value}: {e}")
 
+    return value """
+
+
+# def load_toml_config(ctx, param, value):
+#     if not value: return value
+#     try:
+#         with open(value, "rb") as f:
+#             new_data = tomllib.load(f)
+            
+#             # 1. Intentar obtener la sección específica del comando actual
+#             # 2. Si no existe, buscar si 'output' (o la data) está en la raíz
+#             seccion = new_data.get(ctx.info_name, new_data)
+            
+#             # Si el comando es el principal ('cli'), podríamos querer 
+#             # escanear todas las secciones para subcomandos:
+#             if ctx.info_name == 'cli':
+#                 # Esto mete TODO el toml en el default_map, permitiendo que
+#                 # los subcomandos hereden sus secciones correspondientes.
+#                 ctx.default_map = new_data 
+#                 return value
+
+#             config_normalizada = {k.replace('-', '_'): v for k, v in seccion.items()}
+            
+#             if ctx.default_map is None: ctx.default_map = {}
+#             ctx.default_map.update(config_normalizada)
+#             print("DEBUG: ctx.default_map:", ctx.default_map) # Debug print to check the loaded config file and the default_map.
+            
+#     except Exception as e:
+#         raise click.BadParameter(f"Error: {e}")
+#     return value
+
+
+# def load_toml_config(ctx, param, value):
+#     if value:
+#         try:
+#             with open(value, "rb") as f:
+#                 new_data = tomllib.load(f)
+                
+#                 # Normalizamos las keys de lo que acabamos de leer
+#                 # (Importante: hacerlo antes de decidir dónde guardarlo)
+#                 data_normalizada = {k.replace('-', '_'): v for k, v in new_data.items()}
+
+#                 if ctx.default_map is None:
+#                     ctx.default_map = {}
+
+#                 # LÓGICA DE MEZCLA:
+#                 # Si estamos en el comando principal (cli), guardamos todo el árbol
+#                 if ctx.info_name == "cli":
+#                     # Aquí new_data tiene secciones como 'generate_calibration_report'
+#                     ctx.default_map.update(data_normalizada)
+#                 else:
+#                     # Si estamos en un subcomando, los valores del TOML plano
+#                     # deben ir DENTRO de la llave de este subcomando en el map global
+#                     # o Click no los asociará correctamente con los parámetros.
+#                     if ctx.info_name not in ctx.default_map:
+#                         ctx.default_map[ctx.info_name] = {}
+                    
+#                     ctx.default_map[ctx.info_name].update(data_normalizada)
+
+#                 print(f"DEBUG FINAL para {ctx.info_name}:", ctx.default_map)
+                
+#         except Exception as e:
+#             raise click.BadParameter(f"Error cargando {value}: {e}")
+#     return value
+
+
+# def load_toml_config(ctx, param, value):
+#     if not value:
+#         return value
+#     try:
+#         with open(value, "rb") as f:
+#             new_data = tomllib.load(f)
+            
+#             # Inicializar el objeto compartido
+#             if ctx.obj is None:
+#                 ctx.obj = {}
+
+#             # 1. Si es el comando principal, buscamos la sección del subcomando que viene
+#             # Click sabe a qué subcomando vamos por ctx.invoked_subcommand o inspeccionando args
+#             # Pero lo más seguro es buscar tanto con '-' como con '_'
+#             sub_name_hyphen = ctx.invoked_subcommand or ""
+#             sub_name_underscore = sub_name_hyphen.replace('-', '_')
+            
+#             seccion = new_data.get(sub_name_hyphen) or new_data.get(sub_name_underscore) or new_data
+            
+#             # 2. Normalizar y mezclar en el objeto global
+#             config_normalizada = {k.replace('-', '_'): v for k, v in seccion.items()}
+#             ctx.obj.update(config_normalizada)
+            
+#             # 3. INYECCIÓN MANUAL: Esto asegura que Click vea los valores AHORA
+#             for k, v in config_normalizada.items():
+#                 if k in ctx.command.params or k in [p.name for p in ctx.command.params]:
+#                     # Solo actualizamos si el parámetro no fue ya provisto por el usuario en CLI
+#                     if ctx.params.get(k) is None:
+#                         ctx.params[k] = v
+
+#         print(f"DEBUG ACUMULADO ({ctx.info_name}):", ctx.obj)
+#     except Exception as e:
+#         raise click.ClickException(f"Error cargando {value}: {e}")
+#     return value
+
+
+def load_toml_config(ctx, param, value):
+    if not value:
+        return value
+    try:
+        with open(value, "rb") as f:
+            new_data = tomllib.load(f)
+            if ctx.obj is None:
+                ctx.obj = {}
+
+            # Buscamos la sección (hyphen o underscore)
+            sub_name = ctx.invoked_subcommand or ""
+            seccion = new_data.get(sub_name) or new_data.get(sub_name.replace('-', '_')) or new_data
+            
+            config_normalizada = {k.replace('-', '_'): v for k, v in seccion.items()}
+            
+            # Acumulamos TODO en ctx.obj. Aquí convivirán los datos de config.toml
+            # y de calibration.toml (porque el subcomando corre el callback después).
+            ctx.obj.update(config_normalizada)
+
+        print(f"DEBUG ACUMULADO ({ctx.info_name}):", ctx.obj)
+    except Exception as e:
+        raise click.ClickException(f"Error cargando {value}: {e}")
     return value
+
 
 
 @click.group()
 @click.version_option("0.2.0", prog_name="accord")
 @click.option("--config", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), callback=load_toml_config, is_eager=True, expose_value=False, help="Path to config file.")
-def cli():
+@click.pass_context
+def cli(ctx):
     """Main command line interface for the program."""
-    pass
+    ctx.ensure_object(dict)
 
 #command to copy a sample file
 @click.command()
@@ -129,7 +256,7 @@ def create_image_planar(
     click.echo("Sample images created.")
     sys.exit(0)
 
-#analyze-preliminary command.
+#analyze-preliminary command. PYDANTIC
 @click.command()
 # @click.option("--config", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), callback=load_toml_config, is_eager=True, expose_value=False, help="Path to config file.")
 @click.option("--summary", type=click.Path(file_okay=True, dir_okay=False, path_type=pathlib.Path), help="Path to summary file.")
@@ -142,15 +269,39 @@ def create_image_planar(
 @click.option("--max-ptp", type=click.FLOAT, help="Maximum limit for PTP.")
 @click.option("--ref-temp", type=click.FLOAT, help="Reference temperature for k_TP calculation.")
 @click.option("--k", type=click.INT, help="Coverage factor for calculating expanded uncertainty using normal distribution.")
-def analyze_preliminary(**kwargs):
+@click.pass_context
+def analyze_preliminary(ctx, **kwargs):
     """Analyze calibration preliminary data about measurements."""
 
-    # Filter not given values (None).
-    unsafe_params = {k: v for k, v in kwargs.items() if v is not None}
+    #############################################
+    # 1. Extraer la sección del TOML que está en ctx.obj
+    # (Ya que el callback del comando principal guardó todo ahí)
+    config_seccion = ctx.obj.get('analyze_preliminary', {}) or ctx.obj.get('analyze-preliminary', {})
+    
+    # 2. Crear el diccionario final empezando con los datos del TOML
+    # Usamos ctx.obj (raíz) y luego la sección específica
+    config_final = {**ctx.obj, **config_seccion}
+
+    # 3. SOBRESCRIBIR con los valores de la CLI (kwargs)
+    # Pero SOLO si el usuario realmente pasó algo en la terminal.
+    for k, v in kwargs.items():
+        # Si es una opción múltiple (como notes), verificamos que no esté vacía
+        if isinstance(v, (tuple, list)):
+            if len(v) > 0:
+                config_final[k] = list(v) # Convertimos a lista para Pydantic
+        # Si es una opción normal, verificamos que no sea None
+        elif v is not None:
+            config_final[k] = v
+
+    # 4. Limpiar para Pydantic (quitar diccionarios/secciones y la llave 'path')
+    config_para_pydantic = {k: v for k, v in config_final.items() if not isinstance(v, dict)}
+    # config_para_pydantic.pop('path', None)
+
+    print("DEBUG PARA PYDANTIC:", config_para_pydantic)
 
     # Check with Pydantic that the options have the correct types and values.
     try:
-        safe_params = accord.models.params.PreliminaryAnalysisParams.model_validate(unsafe_params)
+        safe_params = accord.models.params.PreliminaryAnalysisParams.model_validate(config_para_pydantic)
         
     except pydantic.ValidationError as e:
         # Extracting only the first error to not overwhelm the user with a long list of errors.
@@ -161,7 +312,7 @@ def analyze_preliminary(**kwargs):
         
         # Click exception
         raise click.ClickException(
-            f"Error in configuration ('{field}'): {message}"
+            f"Pydantic Error in configuration ('{field}'): {message}"
         )
     
 
@@ -474,8 +625,8 @@ def analyze_image_planar(
 
 # generate-calibration-report.
 @click.command()
-@click.argument("path", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), required=True)
-@click.option("--config", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), help="Config filename.")
+@click.argument("path", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), callback=load_toml_config, is_eager=True, expose_value=True, required=True)
+# @click.option("--config", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), help="Config filename.")
 @click.option("--output", type=click.Path(file_okay=True, dir_okay=False, path_type=pathlib.Path), help="Output filename.")
 @click.option("--chamber", type=click.STRING, help="Chamber model.")
 @click.option("--clinical-pdd-zref", type=click.FLOAT, help="Clinical PDD Zref.")
@@ -499,245 +650,102 @@ def analyze_image_planar(
 @click.option("--voltage-reduced", type=click.INT, help="Voltage reduced.")
 @click.option("--voltage-reference", type=click.INT, help="Voltage reference.")
 @click.option("--notes", type=click.STRING, multiple=True, help="Notes.")
-def generate_calibration_report(
-    path: pathlib.Path,
-    config: pathlib.Path,
-    output: pathlib.Path,
-    chamber: str,
-    clinical_pdd_zref: float,
-    energy: int,
-    fff: bool,
-    institution: str,
-    k_elec: float,
-    m_opposite: tuple[float, float, float],
-    m_reference: tuple[float, float, float],
-    m_reduced: tuple[float, float, float],
-    measurement_date: str,
-    mu: int,
-    n_dw: float,
-    physicist: str,
-    press: tuple[float, str],
-    setup: str,
-    temp: float,
-    tissue_correction: float,
-    unit: str,
-    notes: tuple[str, ...],
-    tpr2010: float,
-    voltage_reduced: int,
-    voltage_reference: int
-):
+@click.pass_context
+def generate_calibration_report(ctx, **kwargs):
     """Generate report about calibration."""
+    
+    #############################################
+    # 1. Extraer la sección del TOML que está en ctx.obj
+    # (Ya que el callback del comando principal guardó todo ahí)
+    config_seccion = ctx.obj.get('generate_calibration_report', {}) or ctx.obj.get('generate-calibration-report', {})
+    
+    # 2. Crear el diccionario final empezando con los datos del TOML
+    # Usamos ctx.obj (raíz) y luego la sección específica
+    config_final = {**ctx.obj, **config_seccion}
 
-    # Load config file
-    cfg = accord.core.nel_aux.load_toml_file(config) if config else {}
+    # 3. SOBRESCRIBIR con los valores de la CLI (kwargs)
+    # Pero SOLO si el usuario realmente pasó algo en la terminal.
+    for k, v in kwargs.items():
+        # Si es una opción múltiple (como notes), verificamos que no esté vacía
+        if isinstance(v, (tuple, list)):
+            if len(v) > 0:
+                config_final[k] = list(v) # Convertimos a lista para Pydantic
+        # Si es una opción normal, verificamos que no sea None
+        elif v is not None:
+            config_final[k] = v
 
-    # Load calibration file
-    calibrationFile = accord.core.nel_aux.load_toml_file(path)
+    # 4. Limpiar para Pydantic (quitar diccionarios/secciones y la llave 'path')
+    config_para_pydantic = {k: v for k, v in config_final.items() if not isinstance(v, dict)}
+    # config_para_pydantic.pop('path', None)
 
-    # Load values from files
-    output = accord.core.nel_aux.resolve_option2(output, cfg, "generate-calibration-report.output")
-
-    chamber = accord.core.nel_aux.resolve_option2(chamber, calibrationFile, "chamber")
-    clinical_pdd_zref = accord.core.nel_aux.resolve_option2(clinical_pdd_zref, calibrationFile, "clinical-pdd-zref")
-    energy = accord.core.nel_aux.resolve_option2(energy, calibrationFile, "energy")
-    fff = accord.core.nel_aux.resolve_option2(fff, calibrationFile, "fff")
-    institution = accord.core.nel_aux.resolve_option2(institution, calibrationFile, "institution")
-    k_elec = accord.core.nel_aux.resolve_option2(k_elec, calibrationFile,  "k-elec")
-    m_opposite = accord.core.nel_aux.resolve_option2(m_opposite, calibrationFile, "m-opposite")
-    m_reference = accord.core.nel_aux.resolve_option2(m_reference, calibrationFile, "m-reference")
-    m_reduced = accord.core.nel_aux.resolve_option2(m_reduced, calibrationFile, "m-reduced")
-    measurement_date = accord.core.nel_aux.resolve_option2(measurement_date, calibrationFile, "measurement-date")
-    mu = accord.core.nel_aux.resolve_option2(mu, calibrationFile, "mu")
-    n_dw = accord.core.nel_aux.resolve_option2(n_dw, calibrationFile, "n-dw")
-    physicist = accord.core.nel_aux.resolve_option2(physicist, calibrationFile, "physicist")
-    press = accord.core.nel_aux.resolve_option2(press, calibrationFile, "press")
-    setup = accord.core.nel_aux.resolve_option2(setup, calibrationFile, "setup")
-    temp = accord.core.nel_aux.resolve_option2(temp, calibrationFile, "temp")
-    tissue_correction = accord.core.nel_aux.resolve_option2(tissue_correction, calibrationFile, "tissue-correction")
-    tpr2010 = accord.core.nel_aux.resolve_option2(tpr2010, calibrationFile, "tpr2010")
-    unit = accord.core.nel_aux.resolve_option2(unit, calibrationFile, "unit")
-    voltage_reduced = accord.core.nel_aux.resolve_option2(voltage_reduced, calibrationFile, "voltage-reduced")
-    voltage_reference = accord.core.nel_aux.resolve_option2(voltage_reference, calibrationFile, "voltage-reference")
-    notes = accord.core.nel_aux.resolve_option2(notes, calibrationFile, "notes")
-
-    # Check types
-    safe = dict()
-    if isinstance(output, str):
-        safe["output"] = pathlib.Path(output)
-    elif isinstance(output, pathlib.Path):
-        safe["output"] = output
-    else:
-        raise click.BadParameter("output must be a path")
-    
-    if isinstance(chamber, str):
-        safe["chamber"] = chamber
-    else:   
-        raise click.BadParameter("chamber must be a string")
-    
-    if isinstance(clinical_pdd_zref, float):
-        safe["clinical_pdd_zref"] = clinical_pdd_zref
-    else:
-        raise click.BadParameter("clinical_pdd_zref must be a float")
-    
-    if isinstance(energy, int):
-        safe["energy"] = energy
-    else:
-        raise click.BadParameter("energy must be an integer")
-    
-    if isinstance(fff, bool):
-        safe["fff"] = fff
-    else:
-        raise click.BadParameter("fff must be a boolean")
-    
-    if isinstance(institution, str):
-        safe["institution"] = institution
-    else:
-        raise click.BadParameter("institution must be a string")
-    
-    if isinstance(k_elec, float):
-        safe["k_elec"] = k_elec
-    else:
-        raise click.BadParameter("k_elec must be a float")
-    
-    if isinstance(m_opposite, list) and len(m_opposite) == 3 and all(isinstance(x, float) for x in m_opposite):
-        safe["m_opposite"] = tuple(m_opposite)
-    elif isinstance(m_opposite, tuple) and len(m_opposite) == 3 and all(isinstance(x, float) for x in m_opposite):
-        safe["m_opposite"] = m_opposite
-    else:
-        raise click.BadParameter("m_opposite must be a tuple of three floats")
-    
-    if isinstance(m_reference, list) and len(m_reference) == 3 and all(isinstance(x, float) for x in m_reference):
-        safe["m_reference"] = tuple(m_reference)
-    elif isinstance(m_reference, tuple) and len(m_reference) == 3 and all(isinstance(x, float) for x in m_reference):
-        safe["m_reference"] = m_reference
-    else:
-        raise click.BadParameter("m_reference must be a tuple of three floats")
-    
-    if isinstance(m_reduced, list) and len(m_reduced) == 3 and all(isinstance(x, float) for x in m_reduced):
-        safe["m_reduced"] = tuple(m_reduced)
-    elif isinstance(m_reduced, tuple) and len(m_reduced) == 3 and all(isinstance(x, float) for x in m_reduced):
-        safe["m_reduced"] = m_reduced
-    else:
-        raise click.BadParameter("m_reduced must be a tuple of three floats")
-    
-    if isinstance(measurement_date, str):
-        safe["measurement_date"] = measurement_date
-    else:
-        raise click.BadParameter("measurement_date must be a string")
-    
-    if isinstance(mu, int):
-        safe["mu"] = mu
-    else:
-        raise click.BadParameter("mu must be an integer")
-    
-    if isinstance(n_dw, float):
-        safe["n_dw"] = n_dw
-    else:
-        raise click.BadParameter("n_dw must be a float")
-    
-    if isinstance(physicist, str):
-        safe["physicist"] = physicist
-    else:
-        raise click.BadParameter("physicist must be a string")
-    
-    # TODO: there is a problem with reading a list or tuple with elements of different types inside a TOML file. The current solution is to read the pressure as a string and then parse it. This is not ideal, but it works.
-    if isinstance(press, dict) and "value" in press and "unit" in press and isinstance(press["value"], float) and isinstance(press["unit"], str):
-        safe["press"] = (press["value"], press["unit"])
-    elif isinstance(press, tuple) and len(press) == 2 and isinstance(press[0], float) and isinstance(press[1], str):
-        safe["press"] = press
-    else:
-        raise click.BadParameter("press must be a tuple of a float and a string")
-    
-    if isinstance(setup, str):
-        safe["setup"] = setup
-    else:
-        raise click.BadParameter("setup must be a string")
-    
-    if isinstance(temp, float):
-        safe["temp"] = temp
-    else:
-        raise click.BadParameter("temp must be a float")
-    
-    if isinstance(tissue_correction, float):
-        safe["tissue_correction"] = tissue_correction
-    else:
-        raise click.BadParameter("tissue_correction must be a float")
-    
-    if isinstance(tpr2010, float):
-        safe["tpr2010"] = tpr2010
-    else:
-        raise click.BadParameter("tpr2010 must be a float")
-    
-    if isinstance(unit, str):
-        safe["unit"] = unit
-    else:
-        raise click.BadParameter("unit must be a string")
-    
-    if isinstance(voltage_reduced, int):
-        safe["voltage_reduced"] = voltage_reduced
-    else:
-        raise click.BadParameter("voltage_reduced must be an integer")
-    
-    if isinstance(voltage_reference, int):
-        safe["voltage_reference"] = voltage_reference
-    else:
-        raise click.BadParameter("voltage_reference must be an integer")
-    
-    if isinstance(notes, list) and all(isinstance(note, str) for note in notes):
-        safe["notes"] = notes
-    elif isinstance(notes, tuple) and all(isinstance(note, str) for note in notes):
-        safe["notes"] = list(notes)
-    else:
-        raise click.BadParameter("notes must be a list of strings")
+    print("DEBUG PARA PYDANTIC:", config_para_pydantic)
+    # Check with Pydantic that the options have the correct types and values.
+    try:
+        safe_params = accord.models.params.GenerateCalibrationReportParams.model_validate(config_para_pydantic)
+        
+    except pydantic.ValidationError as e:
+        # Extracting only the first error to not overwhelm the user with a long list of errors.
+        # The error message is more user-friendly than the default Pydantic error message.
+        error_info = e.errors()[0]
+        field = ".".join(str(loc) for loc in error_info['loc'])
+        message = error_info['msg']
+        
+        # Click exception
+        raise click.ClickException(
+            f"Pydantic Error in configuration ('{field}'): {message}"
+        )
 
     #Check and apply conversion of pressure to kPa if needed.
-    if safe["press"][1] == "kPa":
-        press_kPa = safe["press"][0]
-    elif safe["press"][1] == "mbar":
-        press_kPa = pylinac.trs398.mbar2kPa(safe["press"][0])
-    elif safe["press"][1] == "mmHg":
-        press_kPa = pylinac.trs398.mmHg2kPa(safe["press"][0])
-    else:
-        raise click.BadParameter("Invalid pressure unit. Must be 'kPa', 'mbar', or 'mmHg'.")
+    # if safe_params.press[1] == "kPa":
+    #     press_kPa = safe_params.press[0]
+    # elif safe_params.press[1] == "mbar":
+    #     press_kPa = pylinac.trs398.mbar2kPa(safe_params.press[0])
+    # elif safe_params.press[1] == "mmHg":
+    #     press_kPa = pylinac.trs398.mmHg2kPa(safe_params.press[0])
+    # else:
+    #     raise click.BadParameter("Invalid pressure unit. Must be 'kPa', 'mbar', or 'mmHg'.")
     
     # Calculating TPR2010 from PDD2010 if needed. This is because some of the calculations in the TRS398Photon class require TPR2010, but some users may only have PDD2010. The conversion is done with the formula TPR2010 = PDD2010 / (1 + (PDD2010 - 1) * (zref / zmax)), where zref is the clinical PDD Zref and zmax is the depth of maximum dose. This formula is derived from the definition of PDD and TPR.
 
-    buffer_tpr2010 = pylinac.calibration.tg51.tpr2010_from_pdd2010(pdd2010=safe["tpr2010"])
+    buffer_tpr2010 = pylinac.calibration.tg51.tpr2010_from_pdd2010(pdd2010=safe_params.tpr2010)
+
+    trs398PhotonScheme = safe_params.to_domain_scheme
+    print("DEBUG - TRS398PhotonScheme created from parameters:", trs398PhotonScheme)
 
     # Calculations
     trs398_calculator = pylinac.calibration.trs398.TRS398Photon(
-        chamber=safe["chamber"],
-        clinical_pdd_zref=safe["clinical_pdd_zref"],
-        energy=safe["energy"],
-        fff=safe["fff"],
-        institution=safe["institution"],
-        k_elec=safe["k_elec"],
-        m_opposite=safe["m_opposite"],
-        m_reference=safe["m_reference"],
-        m_reduced=safe["m_reduced"],
-        measurement_date=safe["measurement_date"],
-        mu=safe["mu"],
-        n_dw=safe["n_dw"],
-        physicist=physicist,
-        press=press_kPa,
-        setup=safe["setup"],
-        temp=safe["temp"],
-        tissue_correction=safe["tissue_correction"],
-        tpr2010=safe["tpr2010"],
-        unit=safe["unit"],
-        voltage_reduced=safe["voltage_reduced"],
-        voltage_reference=safe["voltage_reference"]
+        chamber=trs398PhotonScheme.chamber,
+        clinical_pdd_zref=trs398PhotonScheme.clinical_pdd_zref,
+        energy=trs398PhotonScheme.energy,
+        fff=trs398PhotonScheme.fff,
+        institution=trs398PhotonScheme.institution,
+        k_elec=trs398PhotonScheme.k_elec,
+        m_opposite=trs398PhotonScheme.m_opposite,
+        m_reference=trs398PhotonScheme.m_reference,
+        m_reduced=trs398PhotonScheme.m_reduced,
+        measurement_date=trs398PhotonScheme.measurement_date,
+        mu=trs398PhotonScheme.mu,
+        n_dw=trs398PhotonScheme.n_dw,
+        physicist=trs398PhotonScheme.physicist,
+        press=trs398PhotonScheme.press,
+        setup=trs398PhotonScheme.setup,
+        temp=trs398PhotonScheme.temp,
+        tissue_correction=trs398PhotonScheme.tissue_correction,
+        tpr2010=trs398PhotonScheme.tpr2010,
+        unit=trs398PhotonScheme.unit,
+        voltage_reduced=trs398PhotonScheme.voltage_reduced,
+        voltage_reference=trs398PhotonScheme.voltage_reference
     )
 
     trs398_calculator.publish_pdf(
-        filename=str(safe["output"]),
-        notes=safe["notes"],
+        filename=str(safe_params.filename),
+        notes=safe_params.notes,
         open_file=False
         )
-    click.echo(f"Output file {safe['output']} created.")
+    click.echo(f"Output file {safe_params.filename} created.")
 
     #Creating output file for further processing.
-    output_debug_filename = f"calibration-calculatedValues-{safe['energy']}MV.csv"
+    output_debug_filename = f"calibration-calculatedValues-{safe_params.energy}MV.csv"
     with open(output_debug_filename, "w", encoding="utf-8", newline="") as f:
         csvWriter_calibration = csv.writer(f, delimiter=";")
         csvWriter_calibration.writerow(["Quantity", "Unit", "Value-calculated"])
