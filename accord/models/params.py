@@ -8,6 +8,26 @@ import pylinac
 import accord.models.annotatedTypes
 import accord.models.trs398
 
+
+class CreateImagePlanar(pydantic.BaseModel):
+    """
+    This class defines the parameters for the create image planar command.
+    It is used to validate the parameters passed to the command and to provide
+    a structured way to access them.
+    """
+
+    model_config = pydantic.ConfigDict(
+        extra="forbid",
+        strict=True
+    )
+
+    path: accord.models.annotatedTypes.AbsolutePath
+    field_size_mm: accord.models.annotatedTypes.Float2Tuple # = pydantic.Field(alias="field-size-mm")
+    sigma_mm: float #= pydantic.Field(alias="sigma-mm")
+    gantry_angle: float #= pydantic.Field(alias="gantry-angle")
+    epid: str
+
+
 class PreliminaryAnalysisParams(pydantic.BaseModel):
     """
     This class defines the parameters for the preliminary analysis command.

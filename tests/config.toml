@@ -1,7 +1,7 @@
 [create-image-planar]
-field-size-mm = [100.0, 100.0]
-sigma-mm = 2.0
-gantry-angle = 0.0
+field_size_mm = [100.0, 100.0]
+sigma_mm = 2.0
+gantry_angle = 0.0
 epid = "iViewGT"
 
 [analyze-preliminary]

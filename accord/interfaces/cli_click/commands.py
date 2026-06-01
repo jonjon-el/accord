@@ -195,63 +195,65 @@ def create_sample_file(path: pathlib.Path, file_class: str):
 #command to create image for 2D profiling.
 @click.command()
 @click.argument("path", type=click.Path(file_okay=True, dir_okay=False, path_type=pathlib.Path), required=True)
-@click.option("--config", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), help="Path to config file.")
 @click.option("--field-size-mm", type=click.Tuple([click.FLOAT, click.FLOAT]), help="Field size in mm.")
 @click.option("--sigma-mm", type=click.FLOAT, help="Sigma in mm for the Gaussian filter.")
 @click.option("--gantry-angle", type=click.FLOAT, help="Gantry angle in degrees.")
 @click.option("--epid", type=click.STRING, help="Name of the EPID that will be simulated.")
-def create_image_planar(
-    path: pathlib.Path,
-    config: pathlib.Path,
-    field_size_mm: tuple[float, float],
-    sigma_mm: float,
-    gantry_angle: float,
-    epid: str):
+@click.pass_context
+def create_image_planar(ctx, **kwargs):
     """Create planar image for 2D profiling."""
 
-    cfg = accord.core.nel_aux.load_toml_file(config) if config else {}
-
-    field_size_mm = accord.core.nel_aux.resolve_option2(field_size_mm, cfg, "create-image-planar.field-size-mm")
-    sigma_mm = accord.core.nel_aux.resolve_option2(sigma_mm, cfg, "create-image-planar.sigma-mm")
-    gantry_angle = accord.core.nel_aux.resolve_option2(gantry_angle, cfg, "create-image-planar.gantry-angle")
-    epid = accord.core.nel_aux.resolve_option2(epid, cfg, "create-image-planar.epid")
-
-    # Check types
-    safe = dict()    
-
-    if isinstance(field_size_mm, list) and len(field_size_mm) == 2 and all(isinstance(x, float) for x in field_size_mm): #TOML files return lists not tuples
-        safe["field_size_mm"] = tuple(field_size_mm)
-    elif isinstance(field_size_mm, tuple) and len(field_size_mm) == 2 and all(isinstance(x, float) for x in field_size_mm):
-        safe["field_size_mm"] = field_size_mm
-    else:
-        raise click.BadParameter("field-size-mm must be a tuple of two floats.")
-
-    if isinstance(sigma_mm, float):
-        safe["sigma_mm"] = sigma_mm
-    else:
-        raise click.BadParameter("sigma-mm must be a float.")
-
-    if isinstance(gantry_angle, float):
-        safe["gantry_angle"] = gantry_angle
-    else:
-        raise click.BadParameter("gantry-angle must be a float.")
+    #############################################
+    # 1. Extraer la sección del TOML que está en ctx.obj
+    # (Ya que el callback del comando principal guardó todo ahí)
+    config_seccion = ctx.obj.get('create_image_planar', {}) or ctx.obj.get('create-image-planar', {})
     
-    if isinstance(epid, str):
-        safe["epid"] = epid
-    else:
-        raise click.BadParameter("epid must be a string.")
+    # 2. Crear el diccionario final empezando con los datos del TOML
+    # Usamos ctx.obj (raíz) y luego la sección específica
+    config_final = {**ctx.obj, **config_seccion}
+
+    # 3. SOBRESCRIBIR con los valores de la CLI (kwargs)
+    # Pero SOLO si el usuario realmente pasó algo en la terminal.
+    for k, v in kwargs.items():
+        # Si es una opción múltiple (como notes), verificamos que no esté vacía
+        if isinstance(v, (tuple, list)):
+            if len(v) > 0:
+                config_final[k] = list(v) # Convertimos a lista para Pydantic
+        # Si es una opción normal, verificamos que no sea None
+        elif v is not None:
+            config_final[k] = v
+
+    # 4. Limpiar para Pydantic (quitar diccionarios/secciones y la llave 'path')
+    config_para_pydantic = {k: v for k, v in config_final.items() if not isinstance(v, dict)}
+    # config_para_pydantic.pop('path', None)
+
+    print("DEBUG PARA PYDANTIC:", config_para_pydantic)
+
+    # Check with Pydantic that the options have the correct types and values.
+    try:
+        safe_params = accord.models.params.CreateImagePlanar.model_validate(config_para_pydantic)
+        
+    except pydantic.ValidationError as e:
+        # Extracting only the first error to not overwhelm the user with a long list of errors.
+        # The error message is more user-friendly than the default Pydantic error message.
+        error_info = e.errors()[0]
+        field = ".".join(str(loc) for loc in error_info['loc'])
+        message = error_info['msg']
+        
+        # Click exception
+        raise click.ClickException(
+            f"Pydantic Error in configuration ('{field}'): {message}"
+        )
 
     #Load the appropiated epid class.
-    if safe["epid"] == "iViewGT":
+    if safe_params.epid == "iViewGT":
         iViewGT0 = accord.core.customSim.iViewGTImage()
     else:
-        raise click.exceptions.BadParameter(f"Unknown EPID name for class instance: {safe["epid"]}.")
+        raise click.exceptions.BadParameter(f"Unknown EPID name for class instance: {safe_params.epid}.")
     
-    iViewGT0.add_layer(pylinac.core.image_generator.layers.FilteredFieldLayer(field_size_mm=safe["field_size_mm"]))
-    iViewGT0.add_layer(pylinac.core.image_generator.layers.GaussianFilterLayer(sigma_mm=safe["sigma_mm"]))
-    
-
-    iViewGT0.generate_dicom(file_out_name=str(path), gantry_angle=safe["gantry_angle"])
+    iViewGT0.add_layer(pylinac.core.image_generator.layers.FilteredFieldLayer(field_size_mm=safe_params.field_size_mm))
+    iViewGT0.add_layer(pylinac.core.image_generator.layers.GaussianFilterLayer(sigma_mm=safe_params.sigma_mm))
+    iViewGT0.generate_dicom(file_out_name=str(safe_params.path), gantry_angle=safe_params.gantry_angle)
 
     click.echo("Sample images created.")
     sys.exit(0)
@@ -623,7 +625,7 @@ def analyze_image_planar(
     click.echo(f"2D images analyzed.")
     sys.exit(0)
 
-# generate-calibration-report.
+# generate-calibration-report. PYDANTIC
 @click.command()
 @click.argument("path", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), callback=load_toml_config, is_eager=True, expose_value=True, required=True)
 # @click.option("--config", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), help="Config filename.")

@@ -29,6 +29,7 @@ AbsolutePath = typing.Annotated[
 # Función que convierte lista a tupla si es necesario
 def coerce_to_tuple(v: typing.Any) -> typing.Any:
     if isinstance(v, list):
+        print(f"DEBUG converting {v} to tuple...")
         return tuple(v)
     return v
 
@@ -40,12 +41,18 @@ PressTuple = typing.Annotated[
 ]
 
 # Si tienes otros campos como 'm_opposite' que son 3 floats:
+Float2Tuple = typing.Annotated[
+    tuple[float, float],
+    pydantic.BeforeValidator(coerce_to_tuple)
+]
+
+# Si tienes otros campos como 'm_opposite' que son 3 floats:
 Float3Tuple = typing.Annotated[
     tuple[float, float, float],
     pydantic.BeforeValidator(coerce_to_tuple)
 ]
 
-## types for list -> tuple
+## types for tuple -> list
 # Función que convierte tupla a lista si es necesario
 def coerce_to_list(v: typing.Any) -> typing.Any:
     if isinstance(v, tuple):
