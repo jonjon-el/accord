@@ -9,6 +9,33 @@ import accord.models.annotatedTypes
 import accord.models.trs398
 
 
+class AnalyzeImagePlanar(pydantic.BaseModel):
+    """
+    This class defines the parameters for the analyze image planar command.
+    It is used to validate the parameters passed to the command and to provide a structured way to access them.
+    """
+
+    model_config = pydantic.ConfigDict(
+        extra="forbid",
+        strict=True,
+    )
+
+    path: accord.models.annotatedTypes.AbsolutePath
+    protocol: pylinac.Protocol = pylinac.Protocol.NONE
+    output: accord.models.annotatedTypes.AbsolutePath
+
+    @pydantic.field_validator("protocol", mode="before")
+    @classmethod
+    def cast_to_enum(cls: type[pydantic.BaseModel], value: typing.Any) -> pylinac.Protocol:
+        """Convierte el valor a un miembro del enum Protocol, si es una cadena."""
+        if isinstance(value, str):
+            try:
+                return pylinac.Protocol[value]
+            except ValueError:
+                raise ValueError(f"Invalid protocol: {value}. Must be one of {[e.value for e in pylinac.Protocol]}")
+        return value
+
+
 class CreateImagePlanar(pydantic.BaseModel):
     """
     This class defines the parameters for the create image planar command.

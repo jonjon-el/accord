@@ -6,6 +6,8 @@ print(f"Pylinac version: {pylinac.__version__}")
 
 import click # for creating the CLI. # TODO: evaluate if using Typer instead of Click is better for this project.
 import numpy as np # used for calculating statistical quantities and uncertainties. # TODO: migrate from using csv to pandas and numpy
+import matplotlib
+matplotlib.use("Agg") # for plotting the analyzed images without needing a display (for example, when running on a server without GUI).
 import pydantic # for validating the parameters of the commands.
 
 import sys
@@ -166,7 +168,7 @@ def load_toml_config(ctx, param, value):
             # y de calibration.toml (porque el subcomando corre el callback después).
             ctx.obj.update(config_normalizada)
 
-        print(f"DEBUG ACUMULADO ({ctx.info_name}):", ctx.obj)
+        # print(f"DEBUG ACUMULADO ({ctx.info_name}):", ctx.obj)
     except Exception as e:
         raise click.ClickException(f"Error cargando {value}: {e}")
     return value
@@ -563,64 +565,61 @@ def analyze_preliminary(ctx, **kwargs):
 @click.argument("path", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), required=True)
 @click.option("--protocol", type=click.Choice(pylinac.Protocol), help="Protocol used for calculations.")
 @click.option("--output", type=click.Path(file_okay=True, dir_okay=False, path_type=pathlib.Path), help="Path to output analysis file.")
-@click.option("--config", type=click.Path(exists=True, file_okay=True, path_type=pathlib.Path), help="Path to config file.")
-def analyze_image_planar(
-    path: pathlib.Path,
-    config: pathlib.Path,
-    protocol: str,
-    output: pathlib.Path
-    ):
+@click.pass_context
+def analyze_image_planar(ctx: click.Context, **kwargs: dict):
     """Analyze field images."""
 
-    cfg = accord.core.nel_aux.load_toml_file(config) if config else {}
+    #############################################
+    # 1. Extraer la sección del TOML que está en ctx.obj
+    # (Ya que el callback del comando principal guardó todo ahí)
+    config_seccion = ctx.obj.get('analyze_image_planar', {}) or ctx.obj.get('analyze-image-planar', {})
+    
+    # 2. Crear el diccionario final empezando con los datos del TOML
+    # Usamos ctx.obj (raíz) y luego la sección específica
+    config_final = {**ctx.obj, **config_seccion}
 
-    protocol = accord.core.nel_aux.resolve_option2(protocol, cfg, "analyze-image-planar.protocol")
-    output = accord.core.nel_aux.resolve_option2(output, cfg, "analyze-image-planar.output")
+    # 3. SOBRESCRIBIR con los valores de la CLI (kwargs)
+    # Pero SOLO si el usuario realmente pasó algo en la terminal.
+    for k, v in kwargs.items():
+        # Si es una opción múltiple (como notes), verificamos que no esté vacía
+        if isinstance(v, (tuple, list)):
+            if len(v) > 0:
+                config_final[k] = list(v) # Convertimos a lista para Pydantic
+        # Si es una opción normal, verificamos que no sea None
+        elif v is not None:
+            config_final[k] = v
 
-    # Check types
-    safe = dict()
+    # 4. Limpiar para Pydantic (quitar diccionarios/secciones y la llave 'path')
+    config_para_pydantic = {k: v for k, v in config_final.items() if not isinstance(v, dict)}
+    # config_para_pydantic.pop('path', None)
 
-    if isinstance(protocol, str):
-        if protocol == "elekta":
-            safe["protocol"] = pylinac.Protocol.ELEKTA
-        elif protocol == "varian":
-            safe["protocol"] = pylinac.Protocol.VARIAN
-        elif protocol == "siemens":
-            safe["protocol"] = pylinac.Protocol.SIEMENS
-        elif protocol == "none":
-            safe["protocol"] = pylinac.Protocol.NONE
-        else:
-            raise click.BadParameter(f"Unknown protocol: {protocol}.")
-    elif isinstance(protocol, pylinac.Protocol):
-        safe["protocol"] = protocol
-    else:
-        raise click.BadParameter("protocol must be a pylinac.Protocol.")
+    # print("DEBUG PARA PYDANTIC:", config_para_pydantic)
 
-    if isinstance(output, pathlib.Path):
-        safe["output"] = output
-    else:
-        raise click.BadParameter("output must be a pathlib.Path.")
+    # Check with Pydantic that the options have the correct types and values.
+    try:
+        safe_params = accord.models.params.AnalyzeImagePlanar.model_validate(config_para_pydantic)
+        
+    except pydantic.ValidationError as e:
+        # Extracting only the first error to not overwhelm the user with a long list of errors.
+        # The error message is more user-friendly than the default Pydantic error message.
+        error_info = e.errors()[0]
+        field = ".".join(str(loc) for loc in error_info['loc'])
+        message = error_info['msg']
+        
+        # Click exception
+        raise click.ClickException(
+            f"Pydantic Error in configuration ('{field}'): {message}"
+        )
+
 
     # Load input files: field images
-    field_analysis = pylinac.FieldAnalysis(path=str(path))
-    
-    # Picking the asked protocol.
-    # if safe["protocol"] == "elekta":
-        # protocol_class = pylinac.Protocol.ELEKTA
-    # elif safe["protocol"] == "varian":
-        # protocol_class = pylinac.Protocol.VARIAN
-    # elif safe["protocol"] == "siemens":
-        # protocol_class = pylinac.Protocol.SIEMENS
-    # elif safe["protocol"] == None:
-        # protocol_class = pylinac.Protocol.NONE
-    # else:
-        # raise click.exceptions.BadParameter(f"Unknown protocol: {safe['protocol']}.")
+    field_analysis = pylinac.FieldAnalysis(path=str(safe_params.path))
     
     # performing analysis
     # field_analysis.analyze(protocol=protocol_class)
-    field_analysis.analyze(protocol=safe["protocol"])
+    field_analysis.analyze(protocol=safe_params.protocol)
     field_analysis.plot_analyzed_image()
-    field_analysis.publish_pdf(filename=str(safe["output"]))
+    field_analysis.publish_pdf(filename=str(safe_params.output))
     
     click.echo(f"2D images analyzed.")
     sys.exit(0)
