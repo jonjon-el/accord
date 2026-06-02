@@ -24,131 +24,6 @@ import accord.core.corrections
 import accord.models.params
 
 
-""" def load_toml_config(ctx, param, value):
-    "Load a TOML config file and return it as a dictionary."
-    if value is None:
-        return None
-    
-    # This make this callback perform complex and custom tasks in case not finding a valid config file.
-    # Also make this callback works even without the related click decorator parameters.
-    # In this case the logic is simple.
-    path = pathlib.Path(value)
-    if not path.exists():
-        raise click.BadParameter(f"Config file {value} does not exist.")
-    if not path.is_file():
-        raise click.BadParameter(f"Config file {value} is not a file.")
-    
-    try:
-        with open(path, "rb") as configFile:
-            ctx.default_map = tomllib.load(configFile)
-            print("DEBUG:", ctx.default_map) # Debug print to check the loaded config file.
-    except tomllib.TOMLDecodeError as e:
-        raise click.BadParameter(f"Error at line {e.lineno}, col {e.colno} in config file {value}: {e.msg}")
-    except Exception as e:
-        raise click.ClickException(f"Unexpected error occurred while loading config file {value}: {e}")
-
-    return value """
-
-
-# def load_toml_config(ctx, param, value):
-#     if not value: return value
-#     try:
-#         with open(value, "rb") as f:
-#             new_data = tomllib.load(f)
-            
-#             # 1. Intentar obtener la sección específica del comando actual
-#             # 2. Si no existe, buscar si 'output' (o la data) está en la raíz
-#             seccion = new_data.get(ctx.info_name, new_data)
-            
-#             # Si el comando es el principal ('cli'), podríamos querer 
-#             # escanear todas las secciones para subcomandos:
-#             if ctx.info_name == 'cli':
-#                 # Esto mete TODO el toml en el default_map, permitiendo que
-#                 # los subcomandos hereden sus secciones correspondientes.
-#                 ctx.default_map = new_data 
-#                 return value
-
-#             config_normalizada = {k.replace('-', '_'): v for k, v in seccion.items()}
-            
-#             if ctx.default_map is None: ctx.default_map = {}
-#             ctx.default_map.update(config_normalizada)
-#             print("DEBUG: ctx.default_map:", ctx.default_map) # Debug print to check the loaded config file and the default_map.
-            
-#     except Exception as e:
-#         raise click.BadParameter(f"Error: {e}")
-#     return value
-
-
-# def load_toml_config(ctx, param, value):
-#     if value:
-#         try:
-#             with open(value, "rb") as f:
-#                 new_data = tomllib.load(f)
-                
-#                 # Normalizamos las keys de lo que acabamos de leer
-#                 # (Importante: hacerlo antes de decidir dónde guardarlo)
-#                 data_normalizada = {k.replace('-', '_'): v for k, v in new_data.items()}
-
-#                 if ctx.default_map is None:
-#                     ctx.default_map = {}
-
-#                 # LÓGICA DE MEZCLA:
-#                 # Si estamos en el comando principal (cli), guardamos todo el árbol
-#                 if ctx.info_name == "cli":
-#                     # Aquí new_data tiene secciones como 'generate_calibration_report'
-#                     ctx.default_map.update(data_normalizada)
-#                 else:
-#                     # Si estamos en un subcomando, los valores del TOML plano
-#                     # deben ir DENTRO de la llave de este subcomando en el map global
-#                     # o Click no los asociará correctamente con los parámetros.
-#                     if ctx.info_name not in ctx.default_map:
-#                         ctx.default_map[ctx.info_name] = {}
-                    
-#                     ctx.default_map[ctx.info_name].update(data_normalizada)
-
-#                 print(f"DEBUG FINAL para {ctx.info_name}:", ctx.default_map)
-                
-#         except Exception as e:
-#             raise click.BadParameter(f"Error cargando {value}: {e}")
-#     return value
-
-
-# def load_toml_config(ctx, param, value):
-#     if not value:
-#         return value
-#     try:
-#         with open(value, "rb") as f:
-#             new_data = tomllib.load(f)
-            
-#             # Inicializar el objeto compartido
-#             if ctx.obj is None:
-#                 ctx.obj = {}
-
-#             # 1. Si es el comando principal, buscamos la sección del subcomando que viene
-#             # Click sabe a qué subcomando vamos por ctx.invoked_subcommand o inspeccionando args
-#             # Pero lo más seguro es buscar tanto con '-' como con '_'
-#             sub_name_hyphen = ctx.invoked_subcommand or ""
-#             sub_name_underscore = sub_name_hyphen.replace('-', '_')
-            
-#             seccion = new_data.get(sub_name_hyphen) or new_data.get(sub_name_underscore) or new_data
-            
-#             # 2. Normalizar y mezclar en el objeto global
-#             config_normalizada = {k.replace('-', '_'): v for k, v in seccion.items()}
-#             ctx.obj.update(config_normalizada)
-            
-#             # 3. INYECCIÓN MANUAL: Esto asegura que Click vea los valores AHORA
-#             for k, v in config_normalizada.items():
-#                 if k in ctx.command.params or k in [p.name for p in ctx.command.params]:
-#                     # Solo actualizamos si el parámetro no fue ya provisto por el usuario en CLI
-#                     if ctx.params.get(k) is None:
-#                         ctx.params[k] = v
-
-#         print(f"DEBUG ACUMULADO ({ctx.info_name}):", ctx.obj)
-#     except Exception as e:
-#         raise click.ClickException(f"Error cargando {value}: {e}")
-#     return value
-
-
 def load_toml_config(ctx, param, value):
     if not value:
         return value
@@ -174,6 +49,41 @@ def load_toml_config(ctx, param, value):
     return value
 
 
+def merge_cli_fileConfig(ctx: click.Context, kwargs: dict) -> dict:
+    """
+    Merge the configuration from the CLI and the config file (if provided) into a single dictionary.
+    The precedence is given to the CLI options, so they will overwrite the values from the config file if there are conflicts.
+    This function should be called in each command after parsing the CLI options and before validating with Pydantic.
+    """
+    # 1. Extraer la sección del TOML que está en ctx.obj
+    # (Ya que el callback del comando principal guardó todo ahí)
+    if ctx.info_name is None:
+        raise click.ClickException("Error: Command name is None. Cannot extract configuration section from config file.")
+
+    config_seccion = ctx.obj.get(ctx.info_name, {}) or ctx.obj.get(ctx.info_name.replace('-', '_'), {})
+    
+    # 2. Crear el diccionario final empezando con los datos del TOML
+    # Usamos ctx.obj (raíz) y luego la sección específica
+    config_final = {**ctx.obj, **config_seccion}
+
+    # 3. SOBRESCRIBIR con los valores de la CLI (kwargs)
+    # Pero SOLO si el usuario realmente pasó algo en la terminal.
+    for k, v in kwargs.items():
+        # Si es una opción múltiple (como notes), verificamos que no esté vacía
+        if isinstance(v, (tuple, list)):
+            if len(v) > 0:
+                config_final[k] = list(v) # Convertimos a lista para Pydantic
+        # Si es una opción normal, verificamos que no sea None
+        elif v is not None:
+            config_final[k] = v
+
+    # 4. Limpiar para Pydantic (quitar diccionarios/secciones)
+    config_para_pydantic = {k: v for k, v in config_final.items() if not isinstance(v, dict)}
+
+    print("DEBUG PARA PYDANTIC:", config_para_pydantic)
+
+    return config_para_pydantic
+
 
 @click.group()
 @click.version_option("0.2.0", prog_name="accord")
@@ -194,7 +104,7 @@ def create_sample_file(path: pathlib.Path, file_class: str):
 
     sys.exit(0)
 
-#command to create image for 2D profiling.
+#command to create image for 2D profiling. PYDANTIC
 @click.command()
 @click.argument("path", type=click.Path(file_okay=True, dir_okay=False, path_type=pathlib.Path), required=True)
 @click.option("--field-size-mm", type=click.Tuple([click.FLOAT, click.FLOAT]), help="Field size in mm.")
@@ -202,34 +112,10 @@ def create_sample_file(path: pathlib.Path, file_class: str):
 @click.option("--gantry-angle", type=click.FLOAT, help="Gantry angle in degrees.")
 @click.option("--epid", type=click.STRING, help="Name of the EPID that will be simulated.")
 @click.pass_context
-def create_image_planar(ctx, **kwargs):
+def create_image_planar(ctx: click.Context, **kwargs: dict):
     """Create planar image for 2D profiling."""
 
-    #############################################
-    # 1. Extraer la sección del TOML que está en ctx.obj
-    # (Ya que el callback del comando principal guardó todo ahí)
-    config_seccion = ctx.obj.get('create_image_planar', {}) or ctx.obj.get('create-image-planar', {})
-    
-    # 2. Crear el diccionario final empezando con los datos del TOML
-    # Usamos ctx.obj (raíz) y luego la sección específica
-    config_final = {**ctx.obj, **config_seccion}
-
-    # 3. SOBRESCRIBIR con los valores de la CLI (kwargs)
-    # Pero SOLO si el usuario realmente pasó algo en la terminal.
-    for k, v in kwargs.items():
-        # Si es una opción múltiple (como notes), verificamos que no esté vacía
-        if isinstance(v, (tuple, list)):
-            if len(v) > 0:
-                config_final[k] = list(v) # Convertimos a lista para Pydantic
-        # Si es una opción normal, verificamos que no sea None
-        elif v is not None:
-            config_final[k] = v
-
-    # 4. Limpiar para Pydantic (quitar diccionarios/secciones y la llave 'path')
-    config_para_pydantic = {k: v for k, v in config_final.items() if not isinstance(v, dict)}
-    # config_para_pydantic.pop('path', None)
-
-    print("DEBUG PARA PYDANTIC:", config_para_pydantic)
+    config_para_pydantic = merge_cli_fileConfig(ctx, kwargs)
 
     # Check with Pydantic that the options have the correct types and values.
     try:
@@ -262,7 +148,6 @@ def create_image_planar(ctx, **kwargs):
 
 #analyze-preliminary command. PYDANTIC
 @click.command()
-# @click.option("--config", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), callback=load_toml_config, is_eager=True, expose_value=False, help="Path to config file.")
 @click.option("--summary", type=click.Path(file_okay=True, dir_okay=False, path_type=pathlib.Path), help="Path to summary file.")
 @click.option("--devices", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), help="File with specifications of devices used in the measure.")
 @click.option("--input-dir", type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path), help="Path of input file directory.")
@@ -274,34 +159,10 @@ def create_image_planar(ctx, **kwargs):
 @click.option("--ref-temp", type=click.FLOAT, help="Reference temperature for k_TP calculation.")
 @click.option("--k", type=click.INT, help="Coverage factor for calculating expanded uncertainty using normal distribution.")
 @click.pass_context
-def analyze_preliminary(ctx, **kwargs):
+def analyze_preliminary(ctx: click.Context, **kwargs: dict):
     """Analyze calibration preliminary data about measurements."""
 
-    #############################################
-    # 1. Extraer la sección del TOML que está en ctx.obj
-    # (Ya que el callback del comando principal guardó todo ahí)
-    config_seccion = ctx.obj.get('analyze_preliminary', {}) or ctx.obj.get('analyze-preliminary', {})
-    
-    # 2. Crear el diccionario final empezando con los datos del TOML
-    # Usamos ctx.obj (raíz) y luego la sección específica
-    config_final = {**ctx.obj, **config_seccion}
-
-    # 3. SOBRESCRIBIR con los valores de la CLI (kwargs)
-    # Pero SOLO si el usuario realmente pasó algo en la terminal.
-    for k, v in kwargs.items():
-        # Si es una opción múltiple (como notes), verificamos que no esté vacía
-        if isinstance(v, (tuple, list)):
-            if len(v) > 0:
-                config_final[k] = list(v) # Convertimos a lista para Pydantic
-        # Si es una opción normal, verificamos que no sea None
-        elif v is not None:
-            config_final[k] = v
-
-    # 4. Limpiar para Pydantic (quitar diccionarios/secciones y la llave 'path')
-    config_para_pydantic = {k: v for k, v in config_final.items() if not isinstance(v, dict)}
-    # config_para_pydantic.pop('path', None)
-
-    print("DEBUG PARA PYDANTIC:", config_para_pydantic)
+    config_para_pydantic = merge_cli_fileConfig(ctx, kwargs)
 
     # Check with Pydantic that the options have the correct types and values.
     try:
@@ -569,31 +430,7 @@ def analyze_preliminary(ctx, **kwargs):
 def analyze_image_planar(ctx: click.Context, **kwargs: dict):
     """Analyze field images."""
 
-    #############################################
-    # 1. Extraer la sección del TOML que está en ctx.obj
-    # (Ya que el callback del comando principal guardó todo ahí)
-    config_seccion = ctx.obj.get('analyze_image_planar', {}) or ctx.obj.get('analyze-image-planar', {})
-    
-    # 2. Crear el diccionario final empezando con los datos del TOML
-    # Usamos ctx.obj (raíz) y luego la sección específica
-    config_final = {**ctx.obj, **config_seccion}
-
-    # 3. SOBRESCRIBIR con los valores de la CLI (kwargs)
-    # Pero SOLO si el usuario realmente pasó algo en la terminal.
-    for k, v in kwargs.items():
-        # Si es una opción múltiple (como notes), verificamos que no esté vacía
-        if isinstance(v, (tuple, list)):
-            if len(v) > 0:
-                config_final[k] = list(v) # Convertimos a lista para Pydantic
-        # Si es una opción normal, verificamos que no sea None
-        elif v is not None:
-            config_final[k] = v
-
-    # 4. Limpiar para Pydantic (quitar diccionarios/secciones y la llave 'path')
-    config_para_pydantic = {k: v for k, v in config_final.items() if not isinstance(v, dict)}
-    # config_para_pydantic.pop('path', None)
-
-    # print("DEBUG PARA PYDANTIC:", config_para_pydantic)
+    config_para_pydantic = merge_cli_fileConfig(ctx, kwargs)
 
     # Check with Pydantic that the options have the correct types and values.
     try:
@@ -627,7 +464,6 @@ def analyze_image_planar(ctx: click.Context, **kwargs: dict):
 # generate-calibration-report. PYDANTIC
 @click.command()
 @click.argument("path", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), callback=load_toml_config, is_eager=True, expose_value=True, required=True)
-# @click.option("--config", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), help="Config filename.")
 @click.option("--output", type=click.Path(file_okay=True, dir_okay=False, path_type=pathlib.Path), help="Output filename.")
 @click.option("--chamber", type=click.STRING, help="Chamber model.")
 @click.option("--clinical-pdd-zref", type=click.FLOAT, help="Clinical PDD Zref.")
@@ -655,31 +491,8 @@ def analyze_image_planar(ctx: click.Context, **kwargs: dict):
 def generate_calibration_report(ctx, **kwargs):
     """Generate report about calibration."""
     
-    #############################################
-    # 1. Extraer la sección del TOML que está en ctx.obj
-    # (Ya que el callback del comando principal guardó todo ahí)
-    config_seccion = ctx.obj.get('generate_calibration_report', {}) or ctx.obj.get('generate-calibration-report', {})
-    
-    # 2. Crear el diccionario final empezando con los datos del TOML
-    # Usamos ctx.obj (raíz) y luego la sección específica
-    config_final = {**ctx.obj, **config_seccion}
+    config_para_pydantic = merge_cli_fileConfig(ctx, kwargs)
 
-    # 3. SOBRESCRIBIR con los valores de la CLI (kwargs)
-    # Pero SOLO si el usuario realmente pasó algo en la terminal.
-    for k, v in kwargs.items():
-        # Si es una opción múltiple (como notes), verificamos que no esté vacía
-        if isinstance(v, (tuple, list)):
-            if len(v) > 0:
-                config_final[k] = list(v) # Convertimos a lista para Pydantic
-        # Si es una opción normal, verificamos que no sea None
-        elif v is not None:
-            config_final[k] = v
-
-    # 4. Limpiar para Pydantic (quitar diccionarios/secciones y la llave 'path')
-    config_para_pydantic = {k: v for k, v in config_final.items() if not isinstance(v, dict)}
-    # config_para_pydantic.pop('path', None)
-
-    print("DEBUG PARA PYDANTIC:", config_para_pydantic)
     # Check with Pydantic that the options have the correct types and values.
     try:
         safe_params = accord.models.params.GenerateCalibrationReportParams.model_validate(config_para_pydantic)
@@ -695,16 +508,6 @@ def generate_calibration_report(ctx, **kwargs):
         raise click.ClickException(
             f"Pydantic Error in configuration ('{field}'): {message}"
         )
-
-    #Check and apply conversion of pressure to kPa if needed.
-    # if safe_params.press[1] == "kPa":
-    #     press_kPa = safe_params.press[0]
-    # elif safe_params.press[1] == "mbar":
-    #     press_kPa = pylinac.trs398.mbar2kPa(safe_params.press[0])
-    # elif safe_params.press[1] == "mmHg":
-    #     press_kPa = pylinac.trs398.mmHg2kPa(safe_params.press[0])
-    # else:
-    #     raise click.BadParameter("Invalid pressure unit. Must be 'kPa', 'mbar', or 'mmHg'.")
     
     # Calculating TPR2010 from PDD2010 if needed. This is because some of the calculations in the TRS398Photon class require TPR2010, but some users may only have PDD2010. The conversion is done with the formula TPR2010 = PDD2010 / (1 + (PDD2010 - 1) * (zref / zmax)), where zref is the clinical PDD Zref and zmax is the depth of maximum dose. This formula is derived from the definition of PDD and TPR.
 
