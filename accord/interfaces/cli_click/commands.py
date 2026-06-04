@@ -78,6 +78,7 @@ def merge_cli_fileConfig(ctx: click.Context, kwargs: dict) -> dict:
             config_final[k] = v
 
     # 4. Limpiar para Pydantic (quitar diccionarios/secciones)
+    # Solo funciona si ningún key de nivel superior es un diccionario, lo cual es cierto en nuestra estructura actual. Si en el futuro se añaden diccionarios anidados, habría que adaptar esta parte.
     config_para_pydantic = {k: v for k, v in config_final.items() if not isinstance(v, dict)}
 
     print("DEBUG PARA PYDANTIC:", config_para_pydantic)
