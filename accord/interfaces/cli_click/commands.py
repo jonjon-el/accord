@@ -23,76 +23,33 @@ import accord.core.metrology
 import accord.core.corrections
 import accord.models.params
 
-
-def load_toml_config(ctx, param, value):
-    if not value:
-        return value
-    try:
-        with open(value, "rb") as f:
-            new_data = tomllib.load(f)
-            if ctx.obj is None:
-                ctx.obj = {}
-
-            # Buscamos la sección (hyphen o underscore)
-            sub_name = ctx.invoked_subcommand or ""
-            seccion = new_data.get(sub_name) or new_data.get(sub_name.replace('-', '_')) or new_data
-            
-            config_normalizada = {k.replace('-', '_'): v for k, v in seccion.items()}
-            
-            # Acumulamos TODO en ctx.obj. Aquí convivirán los datos de config.toml
-            # y de calibration.toml (porque el subcomando corre el callback después).
-            ctx.obj.update(config_normalizada)
-
-        # print(f"DEBUG ACUMULADO ({ctx.info_name}):", ctx.obj)
-    except Exception as e:
-        raise click.ClickException(f"Error cargando {value}: {e}")
-    return value
-
-
-def merge_cli_fileConfig(ctx: click.Context, kwargs: dict) -> dict:
-    """
-    Merge the configuration from the CLI and the config file (if provided) into a single dictionary.
-    The precedence is given to the CLI options, so they will overwrite the values from the config file if there are conflicts.
-    This function should be called in each command after parsing the CLI options and before validating with Pydantic.
-    """
-    # 1. Extraer la sección del TOML que está en ctx.obj
-    # (Ya que el callback del comando principal guardó todo ahí)
-    if ctx.info_name is None:
-        raise click.ClickException("Error: Command name is None. Cannot extract configuration section from config file.")
-
-    config_seccion = ctx.obj.get(ctx.info_name, {}) or ctx.obj.get(ctx.info_name.replace('-', '_'), {})
-    
-    # 2. Crear el diccionario final empezando con los datos del TOML
-    # Usamos ctx.obj (raíz) y luego la sección específica
-    config_final = {**ctx.obj, **config_seccion}
-
-    # 3. SOBRESCRIBIR con los valores de la CLI (kwargs)
-    # Pero SOLO si el usuario realmente pasó algo en la terminal.
-    for k, v in kwargs.items():
-        # Si es una opción múltiple (como notes), verificamos que no esté vacía
-        if isinstance(v, (tuple, list)):
-            if len(v) > 0:
-                config_final[k] = list(v) # Convertimos a lista para Pydantic
-        # Si es una opción normal, verificamos que no sea None
-        elif v is not None:
-            config_final[k] = v
-
-    # 4. Limpiar para Pydantic (quitar diccionarios/secciones)
-    # Solo funciona si ningún key de nivel superior es un diccionario, lo cual es cierto en nuestra estructura actual. Si en el futuro se añaden diccionarios anidados, habría que adaptar esta parte.
-    config_para_pydantic = {k: v for k, v in config_final.items() if not isinstance(v, dict)}
-
-    print("DEBUG PARA PYDANTIC:", config_para_pydantic)
-
-    return config_para_pydantic
+separator = {
+    "cli": "-",
+    "file": "_"
+}
 
 
 @click.group()
 @click.version_option("0.2.0", prog_name="accord")
-@click.option("--config", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), callback=load_toml_config, is_eager=True, expose_value=False, help="Path to config file.")
+# @click.option("--config", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), callback=load_toml_config, is_eager=True, expose_value=False, help="Path to config file.")
+@click.option("--config", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), is_eager=True, expose_value=True, help="Path to config file.")
 @click.pass_context
-def cli(ctx):
+def cli(ctx, **kwargs):
     """Main command line interface for the program."""
     ctx.ensure_object(dict)
+    config_path = kwargs.get("config", "")
+    try:
+        with open(config_path, "rb") as f:
+            config_data = tomllib.load(f)
+
+    except Exception as e:
+        raise click.ClickException(f"Error loading config file: {e}")
+    
+    config_section = config_data.get(ctx.invoked_subcommand, {}) or config_data.get(ctx.invoked_subcommand.replace(separator["cli"], separator["file"]), {})
+
+    config_section_normalized = {k.replace(separator["cli"], separator["file"]): v for k, v in config_section.items()}
+
+    ctx.obj.update(config_section_normalized)
 
 #command to copy a sample file
 @click.command()
@@ -116,11 +73,13 @@ def create_sample_file(path: pathlib.Path, file_class: str):
 def create_image_planar(ctx: click.Context, **kwargs: dict):
     """Create planar image for 2D profiling."""
 
-    config_para_pydantic = merge_cli_fileConfig(ctx, kwargs)
+    valid_kwargs = {k: v for k, v in kwargs.items() if v is not None and (not isinstance(v, (list, tuple)) or len(v) > 0)}
+
+    config_to_pydantic = {**ctx.obj, **valid_kwargs}
 
     # Check with Pydantic that the options have the correct types and values.
     try:
-        safe_params = accord.models.params.CreateImagePlanar.model_validate(config_para_pydantic)
+        safe_params = accord.models.params.CreateImagePlanar.model_validate(config_to_pydantic)
         
     except pydantic.ValidationError as e:
         # Extracting only the first error to not overwhelm the user with a long list of errors.
@@ -163,11 +122,13 @@ def create_image_planar(ctx: click.Context, **kwargs: dict):
 def analyze_preliminary(ctx: click.Context, **kwargs: dict):
     """Analyze calibration preliminary data about measurements."""
 
-    config_para_pydantic = merge_cli_fileConfig(ctx, kwargs)
+    valid_kwargs = {k: v for k, v in kwargs.items() if v is not None and (not isinstance(v, (list, tuple)) or len(v) > 0)}
+
+    config_to_pydantic = {**ctx.obj, **valid_kwargs}
 
     # Check with Pydantic that the options have the correct types and values.
     try:
-        safe_params = accord.models.params.PreliminaryAnalysisParams.model_validate(config_para_pydantic)
+        safe_params = accord.models.params.PreliminaryAnalysisParams.model_validate(config_to_pydantic)
         
     except pydantic.ValidationError as e:
         # Extracting only the first error to not overwhelm the user with a long list of errors.
@@ -431,11 +392,13 @@ def analyze_preliminary(ctx: click.Context, **kwargs: dict):
 def analyze_image_planar(ctx: click.Context, **kwargs: dict):
     """Analyze field images."""
 
-    config_para_pydantic = merge_cli_fileConfig(ctx, kwargs)
+    valid_kwargs = {k: v for k, v in kwargs.items() if v is not None and (not isinstance(v, (list, tuple)) or len(v) > 0)}
+
+    config_to_pydantic = {**ctx.obj, **valid_kwargs}
 
     # Check with Pydantic that the options have the correct types and values.
     try:
-        safe_params = accord.models.params.AnalyzeImagePlanar.model_validate(config_para_pydantic)
+        safe_params = accord.models.params.AnalyzeImagePlanar.model_validate(config_to_pydantic)
         
     except pydantic.ValidationError as e:
         # Extracting only the first error to not overwhelm the user with a long list of errors.
@@ -464,7 +427,8 @@ def analyze_image_planar(ctx: click.Context, **kwargs: dict):
 
 # generate-calibration-report. PYDANTIC
 @click.command()
-@click.argument("path", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), callback=load_toml_config, is_eager=True, expose_value=True, required=True)
+# @click.argument("path", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), callback=load_toml_config, is_eager=True, expose_value=True, required=True)
+@click.argument("path", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), is_eager=True, expose_value=True, required=True)
 @click.option("--output", type=click.Path(file_okay=True, dir_okay=False, path_type=pathlib.Path), help="Output filename.")
 @click.option("--chamber", type=click.STRING, help="Chamber model.")
 @click.option("--clinical-pdd-zref", type=click.FLOAT, help="Clinical PDD Zref.")
@@ -491,12 +455,26 @@ def analyze_image_planar(ctx: click.Context, **kwargs: dict):
 @click.pass_context
 def generate_calibration_report(ctx, **kwargs):
     """Generate report about calibration."""
+
+    try:
+        with open(kwargs["path"], "rb") as f:
+            config_calibration = tomllib.load(f)
+            print(f"DEBUG CONFIG CALIBRATION FILE DATA (raw): {config_calibration}")
+    except Exception as e:
+        raise click.ClickException(f"Error loading config file: {e}")
+
+    normalized_calibration_config = {k.replace(separator["cli"], separator["file"]): v for k, v in config_calibration.items()}
+    print(f"DEBUG CONFIG CALIBRATION FILE DATA (normalized): {normalized_calibration_config}")
+
+    valid_kwargs = {k: v for k, v in kwargs.items() if v is not None and (not isinstance(v, (list, tuple)) or len(v) > 0)}
     
-    config_para_pydantic = merge_cli_fileConfig(ctx, kwargs)
+    valid_config_calibration = {**normalized_calibration_config, **valid_kwargs}
+
+    config_to_pydantic = {**ctx.obj, **valid_config_calibration}
 
     # Check with Pydantic that the options have the correct types and values.
     try:
-        safe_params = accord.models.params.GenerateCalibrationReportParams.model_validate(config_para_pydantic)
+        safe_params = accord.models.params.GenerateCalibrationReportParams.model_validate(config_to_pydantic)
         
     except pydantic.ValidationError as e:
         # Extracting only the first error to not overwhelm the user with a long list of errors.

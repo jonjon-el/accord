@@ -30,7 +30,6 @@ AbsolutePath = typing.Annotated[
 # Función que convierte lista a tupla si es necesario
 def coerce_to_tuple(v: typing.Any) -> typing.Any:
     if isinstance(v, list):
-        print(f"DEBUG converting {v} to tuple...")
         return tuple(v)
     return v
 
