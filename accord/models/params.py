@@ -131,12 +131,13 @@ class GenerateCalibrationReportParams(pydantic.BaseModel):
         """Construye el objeto complejo a partir de los campos planos."""
 
         # Converting press from tuple to float in kPa.
+        # TODO: Deal with the case of a wrong unit.
         press_value, press_unit = self.press
         if press_unit == "kPa":
             press_kpa = press_value
         elif press_unit == "mmHg":
             press_kpa = pylinac.calibration.trs398.mmHg2kPa(press_value)
-        elif press_unit == "bar":
+        elif press_unit == "mbar":
             press_kpa = pylinac.calibration.trs398.mbar2kPa(press_value)
 
         return accord.models.trs398.TRS398PhotonScheme(

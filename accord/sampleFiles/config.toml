@@ -11,10 +11,10 @@ input-preffix = "preliminary"
 output-preffix = "output"
 filetype = "csv"
 summary = "summary.json"
-max-PTP = 1.2
+max-ptp = 1.2
 ref-temp = 20.0
 devices = "devices.toml"
-k = 2.0
+k = 2
 
 [analyze-image-planar]
 protocol = "elekta"
@@ -22,7 +22,6 @@ output = "image-report.pdf"
 
 [generate-calibration-report]
 output = "calibration-report.pdf"
-ref-temp = 20.0
 
 # [generate-graph]
 # output = "graph_output.png"

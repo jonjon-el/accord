@@ -3,17 +3,20 @@ import pylinac.calibration.tg51
 import pylinac.core.image_generator.layers
 import pylinac
 print(f"Pylinac version: {pylinac.__version__}")
+pylinac_min_version = "3.43.2"
+if pylinac.__version__ < pylinac_min_version:
+    raise ImportError(f"Pylinac version must be at least {pylinac_min_version}.")
 
 import click # for creating the CLI. # TODO: evaluate if using Typer instead of Click is better for this project.
-import numpy as np # used for calculating statistical quantities and uncertainties. # TODO: migrate from using csv to pandas and numpy
+import numpy as np # for calculating statistical quantities and uncertainties. # TODO: migrate from using csv to pandas and numpy
 import matplotlib
-matplotlib.use("Agg") # for plotting the analyzed images without needing a display (for example, when running on a server without GUI).
+matplotlib.use("Agg") # for plotting the analyzed images without needing a display.
 import pydantic # for validating the parameters of the commands.
 
-import sys
 import json # output files and summary file are in json format
-import tomllib # for reading config files and devices specifications files in toml format.
-import csv # for reading and writing preliminary data in csv format.
+import tomllib # config files and devices specifications files are in toml format.
+import csv # preliminary data are in csv format.
+import sys
 import pathlib
 import importlib.resources
 
@@ -29,40 +32,79 @@ separator = {
 }
 
 
-@click.group()
+@click.group(invoke_without_command=True)
 @click.version_option("0.2.0", prog_name="accord")
-# @click.option("--config", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), callback=load_toml_config, is_eager=True, expose_value=False, help="Path to config file.")
 @click.option("--config", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), is_eager=True, expose_value=True, help="Path to config file.")
+#@click.option("--verbose", is_flag=True, help="Enable verbose output.")
+@click.option("--generate-sample-files", type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path), help="Generate sample file at the specified path.")
+@click.option("--file-class", type=click.Choice(["config", "calibration", "preliminary", "devices", "all"]), help="Class of sample file to copy. Required if --generate-sample-files is specified.")
 @click.pass_context
 def cli(ctx, **kwargs):
     """Main command line interface for the program."""
-    ctx.ensure_object(dict)
-    config_path = kwargs.get("config", "")
-    try:
-        with open(config_path, "rb") as f:
-            config_data = tomllib.load(f)
+    # Check for incompatible options.
+    if kwargs["config"] and (kwargs["generate_sample_files"] or kwargs["file_class"]):
+        raise click.ClickException("Cannot specify --config and --generate-sample-files or --file-class at the same time.")
 
-    except Exception as e:
-        raise click.ClickException(f"Error loading config file: {e}")
+    if kwargs["generate_sample_files"] and not kwargs["file_class"]:
+        raise click.ClickException("Must specify --file-class when using --generate-sample-files.")
     
-    config_section = config_data.get(ctx.invoked_subcommand, {}) or config_data.get(ctx.invoked_subcommand.replace(separator["cli"], separator["file"]), {})
+    if kwargs["file_class"] and not kwargs["generate_sample_files"]:
+        raise click.ClickException("Must specify --generate-sample-files when using --file-class.")
 
-    config_section_normalized = {k.replace(separator["cli"], separator["file"]): v for k, v in config_section.items()}
+    # If generate sample files and file class are specified, copy the sample files and exit.
+    if kwargs["generate_sample_files"] and kwargs["file_class"]:
+        try:
+            if kwargs["file_class"] == "all":
+                for file_class in ["config", "calibration", "preliminary", "devices"]:
+                    accord.core.nel_aux.copy_sample_files(kwargs["generate_sample_files"], file_class)
+                    click.echo(f"Sample files of class '{file_class}' copied to {kwargs['generate_sample_files']}")
+            else:
+                accord.core.nel_aux.copy_sample_files(kwargs["generate_sample_files"], kwargs["file_class"])
+                click.echo(f"Sample files of class '{kwargs['file_class']}' copied to {kwargs['generate_sample_files']}")
+        except FileExistsError:
+            click.echo(f"File already exists at {kwargs['generate_sample_files']}")
+        except ValueError as e:
+            click.echo(str(e))
+        except Exception as e:
+            click.echo(f"An error occurred while copying sample files of class '{file_class}': {str(e)}")    
+        sys.exit(0)
 
-    ctx.obj.update(config_section_normalized)
+    # If there are no subcomannd and not generating files then show the help message and exit.
+    if ctx.invoked_subcommand is None and not kwargs["generate_sample_files"]:
+        click.echo(ctx.get_help())
+        sys.exit(0)
 
-#command to copy a sample file
-@click.command()
-@click.argument("path", type=click.Path(file_okay=True, dir_okay=True, path_type=pathlib.Path), required=True)
-@click.option("--file-class", type=click.Choice(["config", "calibration", "preliminary", "devices"]), required=True, help="Class of sample file to copy.")
-def create_sample_file(path: pathlib.Path, file_class: str):
-    """Copy a sample file."""
+    # If config file is specified, load the config file and store the config data in the context object for use in the subcommands.
+    ctx.ensure_object(dict)
+    config_path = kwargs["config"]
 
-    accord.core.nel_aux.copy_sample_files(path, file_class)
+    if config_path:
 
-    sys.exit(0)
+        try:
+            with open(config_path, "rb") as f:
+                config_data = tomllib.load(f)
 
-#command to create image for 2D profiling. PYDANTIC
+            config_section = config_data.get(ctx.invoked_subcommand, {}) or config_data.get(ctx.invoked_subcommand.replace(separator["cli"], separator["file"]), {})
+            config_section_normalized = {k.replace(separator["cli"], separator["file"]): v for k, v in config_section.items()}
+            ctx.obj.update(config_section_normalized)
+
+        except Exception as e:
+            raise click.ClickException(f"Error loading config file: {e}")
+    
+    
+
+#copy a sample file to a given location.
+# @click.command()
+# @click.argument("path", type=click.Path(file_okay=True, dir_okay=True, path_type=pathlib.Path), required=True)
+# @click.option("--file-class", type=click.Choice(["config", "calibration", "preliminary", "devices"]), required=True, help="Class of sample file to copy.")
+# def create_sample_file(path: pathlib.Path, file_class: str):
+#     """Copy a sample file."""
+
+#     accord.core.nel_aux.copy_sample_files(path, file_class)
+
+#     sys.exit(0)
+
+#create image for 2D profiling.
 @click.command()
 @click.argument("path", type=click.Path(file_okay=True, dir_okay=False, path_type=pathlib.Path), required=True)
 @click.option("--field-size-mm", type=click.Tuple([click.FLOAT, click.FLOAT]), help="Field size in mm.")
@@ -106,7 +148,7 @@ def create_image_planar(ctx: click.Context, **kwargs: dict):
     click.echo("Sample images created.")
     sys.exit(0)
 
-#analyze-preliminary command. PYDANTIC
+# analyze the preliminary data: calculate uncertainty of termometer, barometer and the stability of the electrometer across measurements.
 @click.command()
 @click.option("--summary", type=click.Path(file_okay=True, dir_okay=False, path_type=pathlib.Path), help="Path to summary file.")
 @click.option("--devices", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), help="File with specifications of devices used in the measure.")
@@ -197,6 +239,9 @@ def analyze_preliminary(ctx: click.Context, **kwargs: dict):
 
     # Changing bounds of k_tp to avoid BoundError
     # Value are the just as closest posible to default values
+    # TODO: evaluate if changing the bounds of k_tp is the best way to avoid the BoundError or if it is better to catch the error and set k_tp to the closest bound value.
+    # TODO: find an explanation of why the default values of k_tp are so far from the calculated values for the measurements in this preliminary analysis. This may be due to the fact that the default values of k_tp are for a reference temperature of 20 degrees Celsius and a reference pressure of 101.325 kPa, while the measurements in this preliminary analysis may have been taken at different temperatures and pressures.
+    # If this is the case, it may be better to set the default values of k_tp to the expected values for the measurements in this preliminary analysis, rather than changing the bounds of k_tp.
     pylinac.calibration.trs398.MAX_PTP = safe_params.max_ptp
 
     # Convert the units and calculate the corrected charge and the temperature-pressure correction factor
@@ -322,20 +367,7 @@ def analyze_preliminary(ctx: click.Context, **kwargs: dict):
         raise click.ClickException(f"Invalid JSON in file formats file {fileFormats_traversable}.")
     
     output_preliminary_quantities = [column for column in fileFormatsData["output_preliminary"]["columns"].keys()]
-    # output_preliminary_units = [columns["unit"] for columns in fileFormatsData["output_preliminary"]["columns"].values()]
     output_preliminary_units = {column_id: column["unit"] for column_id, column in fileFormatsData["output_preliminary"]["columns"].items()}
-
-    # The quantities of the output files are the same as the input files plus the new quantities calculated in this command. The order of the columns in the output files are specified here.
-    # Csvwriter writes the columns in the order specified in fieldnames.
-    # fieldnames is a list.
-    # output_preliminary_quantities_complete = output_preliminary_quantities
-
-    # The units of the output files are written in the second line of the output files.
-    # They are not list, but dict, because they are written as a row of CsvWriter to the csv file, so the keys are the column names and the values are the units.
-    # output_preliminary_units_dict = dict(zip(output_preliminary_quantities, output_preliminary_units))
-    # The units of the output files are the same as the input files plus the new units specified here. The order of the columns in the output files are specified here.
-    # output_preliminary_units_complete = output_preliminary_units
-
     output_preliminary_column_separator = fileFormatsData["output_preliminary"]["column_delimiter"]
 
     # Writing output files.
@@ -383,7 +415,7 @@ def analyze_preliminary(ctx: click.Context, **kwargs: dict):
     click.echo("Preliminary analysis done.")
     sys.exit(0)
 
-# analyze-image-planar.
+# analyze the image created by create-image-planar.
 @click.command()
 @click.argument("path", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), required=True)
 @click.option("--protocol", type=click.Choice(pylinac.Protocol), help="Protocol used for calculations.")
@@ -425,9 +457,8 @@ def analyze_image_planar(ctx: click.Context, **kwargs: dict):
     click.echo(f"2D images analyzed.")
     sys.exit(0)
 
-# generate-calibration-report. PYDANTIC
+# generate the calibration report in PDF.
 @click.command()
-# @click.argument("path", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), callback=load_toml_config, is_eager=True, expose_value=True, required=True)
 @click.argument("path", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), is_eager=True, expose_value=True, required=True)
 @click.option("--output", type=click.Path(file_okay=True, dir_okay=False, path_type=pathlib.Path), help="Output filename.")
 @click.option("--chamber", type=click.STRING, help="Chamber model.")
@@ -459,12 +490,10 @@ def generate_calibration_report(ctx, **kwargs):
     try:
         with open(kwargs["path"], "rb") as f:
             config_calibration = tomllib.load(f)
-            print(f"DEBUG CONFIG CALIBRATION FILE DATA (raw): {config_calibration}")
     except Exception as e:
         raise click.ClickException(f"Error loading config file: {e}")
 
     normalized_calibration_config = {k.replace(separator["cli"], separator["file"]): v for k, v in config_calibration.items()}
-    print(f"DEBUG CONFIG CALIBRATION FILE DATA (normalized): {normalized_calibration_config}")
 
     valid_kwargs = {k: v for k, v in kwargs.items() if v is not None and (not isinstance(v, (list, tuple)) or len(v) > 0)}
     
@@ -487,15 +516,11 @@ def generate_calibration_report(ctx, **kwargs):
         raise click.ClickException(
             f"Pydantic Error in configuration ('{field}'): {message}"
         )
-    
-    # Calculating TPR2010 from PDD2010 if needed. This is because some of the calculations in the TRS398Photon class require TPR2010, but some users may only have PDD2010. The conversion is done with the formula TPR2010 = PDD2010 / (1 + (PDD2010 - 1) * (zref / zmax)), where zref is the clinical PDD Zref and zmax is the depth of maximum dose. This formula is derived from the definition of PDD and TPR.
-
-    buffer_tpr2010 = pylinac.calibration.tg51.tpr2010_from_pdd2010(pdd2010=safe_params.tpr2010)
 
     trs398PhotonScheme = safe_params.to_domain_scheme
-    print("DEBUG - TRS398PhotonScheme created from parameters:", trs398PhotonScheme)
 
-    # Calculations
+    # Calculations with pylinac.
+    # TODO: The order of the parameters is the same as the order of the parameters in the TRS398Photon class, so we can use the ** operator to unpack the parameters from the dataclass to the TRS398Photon class.
     trs398_calculator = pylinac.calibration.trs398.TRS398Photon(
         chamber=trs398PhotonScheme.chamber,
         clinical_pdd_zref=trs398PhotonScheme.clinical_pdd_zref,
@@ -536,6 +561,7 @@ def generate_calibration_report(ctx, **kwargs):
         csvWriter_calibration.writerow(["K-s", "", trs398_calculator.k_s])
         csvWriter_calibration.writerow(["K-pol", "", trs398_calculator.k_pol])
         csvWriter_calibration.writerow(["k_tp", "", trs398_calculator.k_tp])
+        csvWriter_calibration.writerow(["m_corrected", "nC", trs398_calculator.m_corrected])
         csvWriter_calibration.writerow(["D_ref", "Gy", trs398_calculator.dose_mu_zref])
         csvWriter_calibration.writerow(["D_max", "Gy", trs398_calculator.dose_mu_zmax])
 
@@ -543,7 +569,7 @@ def generate_calibration_report(ctx, **kwargs):
 
     sys.exit(0)
 
-cli.add_command(create_sample_file)
+# cli.add_command(create_sample_file)
 cli.add_command(create_image_planar)
 cli.add_command(analyze_preliminary)
 cli.add_command(analyze_image_planar)

@@ -24,19 +24,13 @@ def copy_sample_files(path: pathlib.Path, file_class: str):
     else:
         raise ValueError("Invalid file type. Please choose 'config', 'calibration', 'preliminary', or 'devices'.")
 
-    try:
-        for configTraversable in configTraversable_list:
-            with importlib.resources.as_file(configTraversable) as configPath:
-                shutil.copy(configPath, path)
-                print(f"File copied.")
-    except FileNotFoundError:
-        raise ValueError(f"Sample file not found in {configPath}.")
-    except PermissionError:
-        raise ValueError(f"Permission denied when copying file.")
-    except shutil.SameFileError:
-        raise ValueError(f"Source and destination represents the same file.")
-    except OSError as e:
-        raise ValueError(f"Error copying file: {e.strerror}.")
+    for configTraversable in configTraversable_list:
+        with importlib.resources.as_file(configTraversable) as configPath:
+            if (path/configPath.name).exists():
+                raise FileExistsError
+            shutil.copy(configPath, path)
+            # print(f"File copied.")
+    
 
 # Load a TOML file
 def load_toml_file(path: pathlib.Path) -> dict[str, object]:
