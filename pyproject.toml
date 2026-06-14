@@ -3,11 +3,12 @@ requires = ["flit_core >=3.11,<4"]
 build-backend = "flit_core.buildapi"
 
 [project]
-name = "accord"
+name = "accord-rt"
 authors = [{name = "jonjon-el"}]
 license = "MIT"
 license-files = ["LICENSE"]
 dynamic = ["version", "description"]
+readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
     "click>=8.0",
@@ -15,6 +16,15 @@ dependencies = [
     "numpy",    
     "scipy"
     ]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Healthcare Industry",
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    "Topic :: Software Development :: Libraries :: Python Modules"
+]
 
 [project.urls]
 Homepage = "https://github.com/jonjon-el/accord"
@@ -26,6 +36,3 @@ accord = "accord.__main__:main"
 
 [tool.flit.module]
 name = "accord"
-
-# [tool.flit.sdist]
-# include = ["accord/config_new.toml"]

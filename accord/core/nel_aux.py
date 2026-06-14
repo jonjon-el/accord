@@ -1,9 +1,36 @@
+import importlib.resources
 import pathlib
+import shutil
 
 import pylinac.calibration.trs398
 import tomllib
-import click
 
+# This file contains auxiliary functions for the NEL calibration process.
+
+# Copy sample files.
+def copy_sample_files(path: pathlib.Path, file_class: str):
+    configTraversable_list = list()
+    if file_class == "config":
+        configTraversable_list.append(importlib.resources.files("accord").joinpath("sampleFiles/config.toml"))
+    elif file_class == "calibration":
+        configTraversable_list.append(importlib.resources.files("accord").joinpath("sampleFiles/calibration.toml"))
+        # TODO: make file_class a list of paths to work with the three preliminary.csv original files.
+    elif file_class == "preliminary":
+        configTraversable_list.append(importlib.resources.files("accord").joinpath("sampleFiles/preliminary_0.csv"))
+        configTraversable_list.append(importlib.resources.files("accord").joinpath("sampleFiles/preliminary_1.csv"))
+        configTraversable_list.append(importlib.resources.files("accord").joinpath("sampleFiles/preliminary_2.csv"))
+    elif file_class == "devices":
+        configTraversable_list.append(importlib.resources.files("accord").joinpath("sampleFiles/devices.toml"))
+    else:
+        raise ValueError("Invalid file type. Please choose 'config', 'calibration', 'preliminary', or 'devices'.")
+
+    for configTraversable in configTraversable_list:
+        with importlib.resources.as_file(configTraversable) as configPath:
+            if (path/configPath.name).exists():
+                raise FileExistsError
+            shutil.copy(configPath, path)
+            # print(f"File copied.")
+    
 
 # Load a TOML file
 def load_toml_file(path: pathlib.Path) -> dict[str, object]:
@@ -20,23 +47,12 @@ def get_nested(dictObj, *keys, default=None):
     return dictObj if dictObj is not None else default
 
 # Validate option helper.
-def resolve_option(cli_value, config, key_path, *, required=False, prompt=False, prompt_text=None):
-    keys = key_path.split(".")
-    value = cli_value or get_nested(config, *keys)
-
-    if value is None:
-        if prompt:
-            return click.prompt(prompt_text or f"Enter value for '{key_path}'")
-        if required:
-            raise click.UsageError(f"Missing required option: --{keys[-1]} or '{key_path}' in config.")
-    return value
-
 def resolve_option2(cli_value, config, key_path):
     keys = key_path.split(".")
     value = cli_value or get_nested(config, *keys)
 
-    if value is None:
-        raise click.UsageError(f"Missing required option: --{keys[-1]} or '{key_path}' in config.")
+    # if value is None:
+    #     raise ValueError(f"Missing required option: --{keys[-1]} or '{key_path}' in config.")
     return value
 
 # Example calibration data structure used in the calibration file.
