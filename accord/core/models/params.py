@@ -5,8 +5,8 @@ import typing
 import pydantic
 import pylinac
 
-import accord.models.annotatedTypes
-import accord.models.trs398
+import accord.core.models.annotatedTypes
+import accord.core.models.trs398
 
 
 class AnalyzeImagePlanar(pydantic.BaseModel):
@@ -20,9 +20,9 @@ class AnalyzeImagePlanar(pydantic.BaseModel):
         strict=True,
     )
 
-    path: accord.models.annotatedTypes.AbsolutePath
+    path: accord.core.models.annotatedTypes.AbsolutePath
     protocol: pylinac.Protocol = pylinac.Protocol.NONE
-    output: accord.models.annotatedTypes.AbsolutePath
+    output: accord.core.models.annotatedTypes.AbsolutePath
 
     @pydantic.field_validator("protocol", mode="before")
     @classmethod
@@ -48,8 +48,8 @@ class CreateImagePlanar(pydantic.BaseModel):
         strict=True
     )
 
-    path: accord.models.annotatedTypes.AbsolutePath
-    field_size_mm: accord.models.annotatedTypes.Float2Tuple # = pydantic.Field(alias="field-size-mm")
+    path: accord.core.models.annotatedTypes.AbsolutePath
+    field_size_mm: accord.core.models.annotatedTypes.Float2Tuple # = pydantic.Field(alias="field-size-mm")
     sigma_mm: float #= pydantic.Field(alias="sigma-mm")
     gantry_angle: float #= pydantic.Field(alias="gantry-angle")
     epid: str
@@ -67,10 +67,10 @@ class PreliminaryAnalysisParams(pydantic.BaseModel):
         strict=True,
     )
 
-    summary: accord.models.annotatedTypes.AbsolutePath
-    devices: accord.models.annotatedTypes.AbsolutePath
-    input_dir: accord.models.annotatedTypes.AbsolutePath
-    output_dir: accord.models.annotatedTypes.AbsolutePath
+    summary: accord.core.models.annotatedTypes.AbsolutePath
+    devices: accord.core.models.annotatedTypes.AbsolutePath
+    input_dir: accord.core.models.annotatedTypes.AbsolutePath
+    output_dir: accord.core.models.annotatedTypes.AbsolutePath
     input_preffix: str
     output_preffix: str
     filetype: str
@@ -92,7 +92,7 @@ class GenerateCalibrationReportParams(pydantic.BaseModel):
         populate_by_name=True
     )
 
-    path: accord.models.annotatedTypes.AbsolutePath # not belongs to pylinac.
+    path: accord.core.models.annotatedTypes.AbsolutePath # not belongs to pylinac.
 
     # TRS398Photon parameters:
     institution: str = ""
@@ -108,26 +108,26 @@ class GenerateCalibrationReportParams(pydantic.BaseModel):
     energy: int
     fff: bool
     # press: float
-    press: accord.models.annotatedTypes.PressTuple # -> float in pylinac.
+    press: accord.core.models.annotatedTypes.PressTuple # -> float in pylinac.
     temp: float
     voltage_reference: int
     voltage_reduced: int
-    m_reference: accord.models.annotatedTypes.Float3Tuple | float
-    m_reduced: accord.models.annotatedTypes.Float3Tuple | float
-    m_opposite: accord.models.annotatedTypes.Float3Tuple | float
+    m_reference: accord.core.models.annotatedTypes.Float3Tuple | float
+    m_reduced: accord.core.models.annotatedTypes.Float3Tuple | float
+    m_opposite: accord.core.models.annotatedTypes.Float3Tuple | float
     k_elec: float
     clinical_pdd_zref: float | None = None
     clinical_tmr_zref: float | None = None
     tissue_correction: float = 1.0
 
     # publish_pdf method parameters:
-    filename: accord.models.annotatedTypes.AbsolutePath = pydantic.Field(alias="output")
-    notes: accord.models.annotatedTypes.NotesList | None = None
+    filename: accord.core.models.annotatedTypes.AbsolutePath = pydantic.Field(alias="output")
+    notes: accord.core.models.annotatedTypes.NotesList | None = None
     open_file: bool = False
     metadata: dict | None = None
 
     @property
-    def to_domain_scheme(self) -> accord.models.trs398.TRS398PhotonScheme:
+    def to_domain_scheme(self) -> accord.core.models.trs398.TRS398PhotonScheme:
         """Construye el objeto complejo a partir de los campos planos."""
 
         # Converting press from tuple to float in kPa.
@@ -140,7 +140,7 @@ class GenerateCalibrationReportParams(pydantic.BaseModel):
         elif press_unit == "mbar":
             press_kpa = pylinac.calibration.trs398.mbar2kPa(press_value)
 
-        return accord.models.trs398.TRS398PhotonScheme(
+        return accord.core.models.trs398.TRS398PhotonScheme(
             institution=self.institution,
             physicist=self.physicist,
             unit=self.unit,

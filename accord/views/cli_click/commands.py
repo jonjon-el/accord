@@ -24,7 +24,7 @@ import accord.core.nel_aux
 import accord.core.customSim
 import accord.core.metrology
 import accord.core.corrections
-import accord.models.params
+import accord.core.models.params
 
 separator = {
     "cli": "-",
@@ -39,7 +39,7 @@ separator = {
 @click.option("--generate-sample-files", type=click.Path(exists=True, file_okay=False, dir_okay=True, path_type=pathlib.Path), help="Generate sample file at the specified path.")
 @click.option("--file-class", type=click.Choice(["config", "calibration", "preliminary", "devices", "all"]), help="Class of sample file to copy. Required if --generate-sample-files is specified.")
 @click.pass_context
-def cli(ctx, **kwargs):
+def main(ctx, **kwargs):
     """Main command line interface for the program."""
     # Check for incompatible options.
     if kwargs["config"] and (kwargs["generate_sample_files"] or kwargs["file_class"]):
@@ -121,7 +121,7 @@ def create_image_planar(ctx: click.Context, **kwargs: dict):
 
     # Check with Pydantic that the options have the correct types and values.
     try:
-        safe_params = accord.models.params.CreateImagePlanar.model_validate(config_to_pydantic)
+        safe_params = accord.core.models.params.CreateImagePlanar.model_validate(config_to_pydantic)
         
     except pydantic.ValidationError as e:
         # Extracting only the first error to not overwhelm the user with a long list of errors.
@@ -170,7 +170,7 @@ def analyze_preliminary(ctx: click.Context, **kwargs: dict):
 
     # Check with Pydantic that the options have the correct types and values.
     try:
-        safe_params = accord.models.params.PreliminaryAnalysisParams.model_validate(config_to_pydantic)
+        safe_params = accord.core.models.params.PreliminaryAnalysisParams.model_validate(config_to_pydantic)
         
     except pydantic.ValidationError as e:
         # Extracting only the first error to not overwhelm the user with a long list of errors.
@@ -430,7 +430,7 @@ def analyze_image_planar(ctx: click.Context, **kwargs: dict):
 
     # Check with Pydantic that the options have the correct types and values.
     try:
-        safe_params = accord.models.params.AnalyzeImagePlanar.model_validate(config_to_pydantic)
+        safe_params = accord.core.models.params.AnalyzeImagePlanar.model_validate(config_to_pydantic)
         
     except pydantic.ValidationError as e:
         # Extracting only the first error to not overwhelm the user with a long list of errors.
@@ -503,7 +503,7 @@ def generate_calibration_report(ctx, **kwargs):
 
     # Check with Pydantic that the options have the correct types and values.
     try:
-        safe_params = accord.models.params.GenerateCalibrationReportParams.model_validate(config_to_pydantic)
+        safe_params = accord.core.models.params.GenerateCalibrationReportParams.model_validate(config_to_pydantic)
         
     except pydantic.ValidationError as e:
         # Extracting only the first error to not overwhelm the user with a long list of errors.
@@ -570,11 +570,11 @@ def generate_calibration_report(ctx, **kwargs):
     sys.exit(0)
 
 # cli.add_command(create_sample_file)
-cli.add_command(create_image_planar)
-cli.add_command(analyze_preliminary)
-cli.add_command(analyze_image_planar)
-cli.add_command(generate_calibration_report)
+main.add_command(create_image_planar)
+main.add_command(analyze_preliminary)
+main.add_command(analyze_image_planar)
+main.add_command(generate_calibration_report)
 
 if __name__ == "__main__":
-    cli()
+    main()
     print(f"Program terminated.")

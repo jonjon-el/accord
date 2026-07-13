@@ -1,7 +1,9 @@
-import accord.interfaces.cli_click.commands
+import accord.views.cli_click.commands
+from accord.launcher import main_cli
 
 def main():
     """
     CLI entry point.
     """
-    accord.interfaces.cli_click.commands.cli()
+
+    main_cli()

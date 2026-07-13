@@ -32,7 +32,8 @@ Source = "https://github.com/jonjon-el/accord"
 Issues = "https://github.com/jonjon-el/accord/issues"
 
 [project.scripts]
-accord = "accord.__main__:main"
+accord = "accord.launcher:main_cli"
+accord-gui = "accord.launcher:main_gui"
 
 [tool.flit.module]
 name = "accord"
