@@ -26,6 +26,9 @@ import accord.core.metrology
 import accord.core.corrections
 import accord.core.models.params
 
+import accord.core.IO
+import accord.adapters.analyze_preliminary_adapter
+
 separator = {
     "cli": "-",
     "file": "_"
@@ -149,6 +152,7 @@ def create_image_planar(ctx: click.Context, **kwargs: dict):
     sys.exit(0)
 
 # analyze the preliminary data: calculate uncertainty of termometer, barometer and the stability of the electrometer across measurements.
+# MVA
 @click.command()
 @click.option("--summary", type=click.Path(file_okay=True, dir_okay=False, path_type=pathlib.Path), help="Path to summary file.")
 @click.option("--devices", type=click.Path(exists=True, file_okay=True, dir_okay=False, path_type=pathlib.Path), help="File with specifications of devices used in the measure.")
@@ -202,13 +206,8 @@ def analyze_preliminary(ctx: click.Context, **kwargs: dict):
         raise click.ClickException(f"Invalid JSON in file formats file {fileFormats_traversable}.")
 
     # Getting the input filenames.
-    filepaths = list()
-    for file in pathlib.Path(safe_params.input_dir).iterdir():
-        if file.is_file():
-            if file.name.startswith(safe_params.input_preffix) and file.suffix == f".{safe_params.filetype}":
-                filepaths.append(str(file.resolve()))
-    if len(filepaths) == 0:
-        raise FileNotFoundError("Cannot find input files.")
+    filepaths = accord.core.IO.FilterFilesByAffix(input_dir=safe_params.input_dir, preffix=safe_params.input_preffix, suffix=f".{safe_params.filetype}")
+
 
     # Loading quantities data.
     quantities_traversable = importlib.resources.files("accord").joinpath("formats/quantities.json")
@@ -221,19 +220,19 @@ def analyze_preliminary(ctx: click.Context, **kwargs: dict):
         raise click.ClickException(f"Invalid JSON in quantities file {quantities_traversable}.")
 
     # Read the files and convert them to rawMeasurement_list_tries
-    input_preliminary_column_separator = fileFormatsData["input_preliminary"]["column_delimiter"]
+    preliminaryFileParser0 = accord.core.IO.PreliminaryFileParser()
+    preliminaryFileParser0.quantitiesData = quantitiesData
+    preliminaryFileParser0.fileFormats = fileFormatsData
+    
+    if not preliminaryFileParser0.IsReady():
+        raise click.ClickException("PreliminaryFileParser is not ready. Please set the quantitiesData and fileFormats attributes before calling ParseFiles.")
+    
+    preliminaryFileParser0.ParseFiles(filepaths=filepaths)
+    
+    rawMeasurement_list_tries = preliminaryFileParser0.rawMeasurements_set
 
-    rawMeasurement_list_tries = list()
-    for filepath in filepaths:    
-        with open(filepath, "r", encoding = "utf-8") as csvFile:
-            csvDictReader = csv.DictReader(csvFile, delimiter=input_preliminary_column_separator)
-            input_preliminary_quantities = csvDictReader.fieldnames # Getting the current header in first line
-            input_preliminary_units = next(csvDictReader) # Getting the units in second line. Try deleting for specify in config file.
-            rawMeasurement_list = list()
-            for row in csvDictReader: # Getting the values
-                rawMeasurement = accord.core.nel_aux.Row2Measurement2(row=row, quantities=quantitiesData)
-                rawMeasurement_list.append(rawMeasurement.copy())
-        rawMeasurement_list_tries.append(rawMeasurement_list.copy())
+    input_preliminary_quantities = preliminaryFileParser0.input_preliminary_quantities
+    input_preliminary_units = preliminaryFileParser0.input_preliminary_units
 
     ## from tables of values to tables of values with the appropiate units and the new calculated quantities.
 
@@ -245,20 +244,17 @@ def analyze_preliminary(ctx: click.Context, **kwargs: dict):
     pylinac.calibration.trs398.MAX_PTP = safe_params.max_ptp
 
     # Convert the units and calculate the corrected charge and the temperature-pressure correction factor
-    measurement_list_tries = list()
-
-    for rawMeasurement_list in rawMeasurement_list_tries:
-        measurement_list = list()
-        for rawMeasurement in rawMeasurement_list:
-            measurement = accord.core.nel_aux.Convert_measurement_to_pylinac_units(measurement=rawMeasurement, oldUnits=input_preliminary_units)
-            measurement["k_TP"] = pylinac.calibration.trs398.k_tp(temp = measurement["T"], press = measurement["P"], ref_temp=safe_params.ref_temp) # Calculation of k_TP with the reference temperature specified by the user.
-            measurement["m_corrected"] = pylinac.calibration.trs398.m_corrected(m_reference=measurement["m"],
-                                                            k_tp=measurement["k_TP"],
-                                                            k_elec=1,
-                                                            k_pol=1,
-                                                            k_s=1)
-            measurement_list.append(measurement.copy())
-        measurement_list_tries.append(measurement_list.copy())
+    measurement_list_tries = accord.adapters.analyze_preliminary_adapter.Measurements2PylinacUnits_set(
+        rawMeasurements_set=rawMeasurement_list_tries,
+        oldUnits=input_preliminary_units
+        )
+    measurement_list_tries = accord.adapters.analyze_preliminary_adapter.ProcessMeasurements_set(
+        measurements_set=measurement_list_tries,
+        ref_temp=safe_params.ref_temp,
+        k_elec=1,
+        k_pol=1,
+        k_s=1
+        )
 
     ## Calculating general statistical quantities.
 

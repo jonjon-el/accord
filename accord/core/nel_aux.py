@@ -148,27 +148,27 @@ def ConvertMeasurement(rawMeasurement: dict, oldUnits: dict, newUnits: dict) -> 
             #     measurement[key] = trs398.convert_charge(rawMeasurement[key], oldUnits[key], newUnits[key])
     return measurement
 
-def Convert_measurement_to_pylinac_units(measurement: dict, oldUnits: dict) -> dict:
-    converted_measurement = measurement.copy()
-    for key in converted_measurement:
-        if key == "T":
-            if oldUnits[key] == "°F":
-                converted_measurement[key] = pylinac.calibration.trs398.fahrenheit2celsius(converted_measurement[key])
-            elif oldUnits[key] == "°C":
-                pass
-            else:
-                raise ValueError(f"Invalid temperature unit: {oldUnits[key]}")
-        elif key == "P":
-            if oldUnits[key] == "mbar":
-                converted_measurement[key] = pylinac.calibration.trs398.mbar2kPa(converted_measurement[key])
-            elif oldUnits[key] == "mmHg":
-                converted_measurement[key] = pylinac.calibration.trs398.mmHg2kPa(converted_measurement[key])
-            elif oldUnits[key] == "kPa":
-                pass
-            else:
-                raise ValueError(f"Invalid pressure unit: {oldUnits[key]}")
+# def Convert_measurement_to_pylinac_units(measurement: dict, oldUnits: dict) -> dict:
+#     converted_measurement = measurement.copy()
+#     for key in converted_measurement:
+#         if key == "T":
+#             if oldUnits[key] == "°F":
+#                 converted_measurement[key] = pylinac.calibration.trs398.fahrenheit2celsius(converted_measurement[key])
+#             elif oldUnits[key] == "°C":
+#                 pass
+#             else:
+#                 raise ValueError(f"Invalid temperature unit: {oldUnits[key]}")
+#         elif key == "P":
+#             if oldUnits[key] == "mbar":
+#                 converted_measurement[key] = pylinac.calibration.trs398.mbar2kPa(converted_measurement[key])
+#             elif oldUnits[key] == "mmHg":
+#                 converted_measurement[key] = pylinac.calibration.trs398.mmHg2kPa(converted_measurement[key])
+#             elif oldUnits[key] == "kPa":
+#                 pass
+#             else:
+#                 raise ValueError(f"Invalid pressure unit: {oldUnits[key]}")
             
-    return converted_measurement
+#     return converted_measurement
 
 def FindAverage(numberList: list) -> float:
     acum = 0
